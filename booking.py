@@ -7,6 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain.agents import create_agent
 from langgraph.types import interrupt
 from config import get_llm
+from rag import cerca_preparazione
 
 llm = get_llm()
 
@@ -100,17 +101,8 @@ def cerca_slot_liberi_dati(specialita, data):
     return risultati
 
 
-# Funzioni finte, da sostituire con quelle della Persona 1 (registrazione e ricevuta)
-# e della Persona 2 (RAG). Cambiano i dati solo in memoria: nessun file viene modificato.
-
-preparazioni_finte = {
-    "Cardiologia": "Portare elenco dei farmaci assunti ed eventuali ECG precedenti; evitare caffè nelle 3 ore precedenti.",
-    "Dermatologia": "Mappatura nei: non applicare creme o trucco il giorno della visita.",
-    "Ortopedia": "Portare referti di radiografie o risonanze già eseguite.",
-    "Oculistica": "La dilatazione della pupilla può rendere difficoltosa la guida per alcune ore, si consiglia di farsi accompagnare.",
-    "Nutrizione": "Presentarsi con esami del sangue recenti (non più vecchi di 6 mesi) e un diario alimentare di 3 giorni.",
-}
-
+# Funzioni finte, da sostituire con quelle della Persona 1 (registrazione e ricevuta).
+# Cambiano i dati solo in memoria: nessun file viene modificato.
 
 def nuovo_id(lista):
     massimo = 0
@@ -143,14 +135,6 @@ def salva_ricevuta(ricevuta):
     ricevuta_completa.update(ricevuta)
     ricevute_lista.append(ricevuta_completa)
     return ricevuta_completa
-
-
-def cerca_preparazione(specialita):
-    testo = preparazioni_finte.get(specialita, "Nessuna preparazione indicata.")
-    frasi = []
-    for parte in testo.split(";"):
-        frasi.append(parte.strip().rstrip("."))
-    return {"frasi": frasi, "fonte": "Carta dei Servizi, sezione Preparazione agli esami"}
 
 
 @tool
