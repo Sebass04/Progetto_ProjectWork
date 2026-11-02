@@ -1,4 +1,5 @@
-{
+[
+    {
     "id": 1,
     "prenotazione_id": 1,
     "paziente_id": 1,
@@ -9,3 +10,4 @@
     "importo": 120,
     "stato": "confermata"
 }
+]

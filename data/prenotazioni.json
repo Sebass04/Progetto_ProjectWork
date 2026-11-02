@@ -1,7 +1,9 @@
-{
+[
+    {
     "id": 1,
     "paziente_id": 1,
     "slot_id": 3,
     "stato": "confermata",
     "data_prenotazione": "2026-11-02T10:30:00"
 }
+]
