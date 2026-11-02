@@ -1,13 +1,19 @@
 [
     {
-    "id": 1,
-    "prenotazione_id": 1,
-    "paziente_id": 1,
-    "specialita": "Cardiologia",
-    "medico": "Laura Bianchi",
-    "data_visita": "2026-11-03T09:00",
-    "tipo_visita": "Prima visita",
-    "importo": 120,
-    "stato": "confermata"
-}
+        "id": 1,
+        "prenotazione_id": 1,
+        "paziente_id": 1,
+        "slot_id": 1,
+        "specialita": "Cardiologia",
+        "medico": "Laura Bianchi",
+        "data_visita": "2026-11-03T09:00",
+        "tipo_visita": "Prima visita",
+        "importo": 120,
+        "stato": "confermato",
+        "preparazione": [
+            "Portare la lista dei farmaci assunti",
+            "Portare eventuali ECG precedenti",
+            "Evitare il caffè nelle 3 ore precedenti"
+        ]
+    }
 ]

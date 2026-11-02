@@ -3,181 +3,211 @@
     {
         "id": 1,
         "medico_id": 1,
-        "data_ora": "2026-11-03T09:00",
+        "data_ora": "2026-11-03",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 2,
         "medico_id": 1,
-        "data_ora": "2026-11-03T10:00",
+        "data_ora": "2026-11-03",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 3,
         "medico_id": 1,
-        "data_ora": "2026-11-04T09:00",
+        "data_ora": "2026-11-04",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 4,
         "medico_id": 1,
-        "data_ora": "2026-11-04T11:00",
+        "data_ora": "2026-11-04",
+        "ora": "11:00",
         "libero": true
     },
     {
         "id": 5,
         "medico_id": 1,
-        "data_ora": "2026-11-05T09:00",
+        "data_ora": "2026-11-05",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 6,
         "medico_id": 2,
-        "data_ora": "2026-11-03T11:00",
+        "data_ora": "2026-11-03",
+        "ora": "11:00",
         "libero": true
     },
     {
         "id": 7,
         "medico_id": 2,
-        "data_ora": "2026-11-04T10:00",
+        "data_ora": "2026-11-04",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 8,
         "medico_id": 2,
-        "data_ora": "2026-11-05T10:00",
+        "data_ora": "2026-11-05",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 9,
         "medico_id": 2,
-        "data_ora": "2026-11-06T09:00",
+        "data_ora": "2026-11-06",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 10,
         "medico_id": 2,
-        "data_ora": "2026-11-06T10:00",
+        "data_ora": "2026-11-06",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 11,
         "medico_id": 3,
-        "data_ora": "2026-11-03T09:00",
+        "data_ora": "2026-11-03",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 12,
         "medico_id": 3,
-        "data_ora": "2026-11-03T10:00",
+        "data_ora": "2026-11-03",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 13,
         "medico_id": 3,
-        "data_ora": "2026-11-04T09:00",
+        "data_ora": "2026-11-04",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 14,
         "medico_id": 3,
-        "data_ora": "2026-11-05T11:00",
+        "data_ora": "2026-11-05",
+        "ora": "11:00",
         "libero": true
     },
     {
         "id": 15,
         "medico_id": 3,
-        "data_ora": "2026-11-06T09:00",
+        "data_ora": "2026-11-06",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 16,
         "medico_id": 4,
-        "data_ora": "2026-11-03T10:00",
+        "data_ora": "2026-11-03",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 17,
         "medico_id": 4,
-        "data_ora": "2026-11-04T09:00",
+        "data_ora": "2026-11-04",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 18,
         "medico_id": 4,
-        "data_ora": "2026-11-04T10:00",
+        "data_ora": "2026-11-04",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 19,
         "medico_id": 4,
-        "data_ora": "2026-11-05T09:00",
+        "data_ora": "2026-11-05",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 20,
         "medico_id": 4,
-        "data_ora": "2026-11-06T10:00",
+        "data_ora": "2026-11-06",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 21,
         "medico_id": 5,
-        "data_ora": "2026-11-03T09:00",
+        "data_ora": "2026-11-03",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 22,
         "medico_id": 5,
-        "data_ora": "2026-11-03T11:00",
+        "data_ora": "2026-11-03",
+        "ora": "11:00",
         "libero": true
     },
     {
         "id": 23,
         "medico_id": 5,
-        "data_ora": "2026-11-04T10:00",
+        "data_ora": "2026-11-04",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 24,
         "medico_id": 5,
-        "data_ora": "2026-11-05T09:00",
+        "data_ora": "2026-11-05",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 25,
         "medico_id": 5,
-        "data_ora": "2026-11-06T11:00",
+        "data_ora": "2026-11-06",
+        "ora": "11:00",
         "libero": true
     },
     {
         "id": 26,
         "medico_id": 6,
-        "data_ora": "2026-11-03T09:00",
+        "data_ora": "2026-11-03",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 27,
         "medico_id": 6,
-        "data_ora": "2026-11-04T10:00",
+        "data_ora": "2026-11-04",
+        "ora": "10:00",
         "libero": true
     },
     {
         "id": 28,
         "medico_id": 6,
-        "data_ora": "2026-11-04T11:00",
+        "data_ora": "2026-11-04",
+        "ora": "11:00",
         "libero": true
     },
     {
         "id": 29,
         "medico_id": 6,
-        "data_ora": "2026-11-05T09:00",
+        "data_ora": "2026-11-05",
+        "ora": "09:00",
         "libero": true
     },
     {
         "id": 30,
         "medico_id": 6,
-        "data_ora": "2026-11-06T10:00",
+        "data_ora": "2026-11-06",
+        "ora": "10:00",
         "libero": true
     }
 ]
