@@ -10,9 +10,16 @@ PREPARAZIONE DELL'AMBIENTE VIRTUALE E DEI MODELLI DA USARE
     - Aprire il terminale e scrivere 'ollama list' per vedere i modelli scaricati
     - Nel caso in cui il modello da usare non è scaricato usare questo   comando: 
         - ollama pull <modello-chat> e ollama pull <modello-embedding>
-    - Dopo aver scaricato i modelli, o se li hai già scaricati, nel terminale di VS code scrivere:
-        - set OLLAMA_MODEL=<modello-chat>
-        - set OLLAMA_EMBED_MODEL=<modello-embedding>
+    - Dopo aver scaricato i modelli, o se li hai già scaricati, nel terminale di VS code (PowerShell) scrivere:
+        - $env:OLLAMA_MODEL="<modello-chat>"
+        - $env:OLLAMA_EMBED_MODEL="<modello-embedding>"
+      (nel Prompt dei comandi cmd invece: set OLLAMA_MODEL=<modello-chat>)
+      Se non si imposta niente, config.py usa già qwen2.5:latest e bge-m3:latest.
+
+4. Creare il database SQLite
+    - python db.py
+    - crea medibook.db a partire da schema.sql (se manca, viene creato anche in automatico al primo avvio)
+    - se si modifica schema.sql bisogna rilanciare python db.py
 
 MODELLI DA USARE:
 - MODELLO-CHAT: qwen2.5:latest

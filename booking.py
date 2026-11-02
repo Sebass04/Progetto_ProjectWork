@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -7,134 +8,124 @@ from langchain_core.runnables import RunnableConfig
 from langchain.agents import create_agent
 from langgraph.types import interrupt
 from config import get_llm
+from db import apri_connessione, crea_database, percorso_db
 from rag import cerca_preparazione
 
 llm = get_llm()
 
-cartella_dati = Path(__file__).parent / "data"
+if percorso_db.exists() == False:
+    crea_database()
 
-with open(cartella_dati / "specialita.json", encoding="utf-8") as file:
-    specialita_lista = json.load(file)
-with open(cartella_dati / "medici.json", encoding="utf-8") as file:
-    medici_lista = json.load(file)
-with open(cartella_dati / "slot.json", encoding="utf-8") as file:
-    slot_lista = json.load(file)
-with open(cartella_dati / "pazienti.json", encoding="utf-8") as file:
-    pazienti_lista = json.load(file)
-with open(cartella_dati / "prenotazioni.json", encoding="utf-8") as file:
-    prenotazioni_lista = json.load(file)
-with open(cartella_dati / "ricevute.json", encoding="utf-8") as file:
-    ricevute_lista = json.load(file)
+cartella_ricevute = Path(__file__).parent / "ricevute"
 
 
 def mostra_data(data_ora):
     return datetime.fromisoformat(data_ora).strftime("%d-%m-%Y %H:%M")
 
 
-def nome_specialita(specialita_id):
-    for specialita in specialita_lista:
-        if specialita["id"] == specialita_id:
-            return specialita["nome"]
-    return None
-
-
-def trova_medico(medico_id):
-    for medico in medici_lista:
-        if medico["id"] == medico_id:
-            return medico
-    return None
-
-
 def trova_specialita(nome):
-    for specialita in specialita_lista:
-        if specialita["nome"].lower() == nome.lower():
-            return specialita
-    return None
+    connessione = apri_connessione()
+    riga = connessione.execute(
+        "SELECT * FROM specialita WHERE lower(nome) = lower(?)", (nome,)
+    ).fetchone()
+    connessione.close()
+    if riga is None:
+        return None
+    return dict(riga)
 
 
 def trova_paziente(codice_fiscale):
-    for paziente in pazienti_lista:
-        if paziente["codice_fiscale"].upper() == codice_fiscale:
-            return paziente
-    return None
+    connessione = apri_connessione()
+    riga = connessione.execute(
+        "SELECT id, nome, codice_fiscale FROM pazienti WHERE codice_fiscale = ?", (codice_fiscale,)
+    ).fetchone()
+    connessione.close()
+    if riga is None:
+        return None
+    return dict(riga)
+
+
+query_slot = """
+    SELECT slot.id AS slot_id, medici.nome AS medico, specialita.nome AS specialita,
+           slot.data_ora AS data_ora, slot.libero AS libero
+    FROM slot
+    JOIN medici ON medici.id = slot.medico_id
+    JOIN specialita ON specialita.id = medici.specialita_id
+"""
 
 
 def trova_slot(slot_id):
-    for slot in slot_lista:
-        if slot["id"] == slot_id:
-            medico = trova_medico(slot["medico_id"])
-            if medico is None:
-                return None
-            specialita = nome_specialita(medico["specialita_id"])
-            if specialita is None:
-                return None
-            return {
-                "slot_id": slot["id"],
-                "medico": medico["nome"],
-                "specialita": specialita,
-                "data_ora": slot["data_ora"] + "T" + slot["ora"],
-                "libero": slot["libero"],
-            }
-    return None
+    connessione = apri_connessione()
+    riga = connessione.execute(query_slot + " WHERE slot.id = ?", (slot_id,)).fetchone()
+    connessione.close()
+    if riga is None:
+        return None
+    return dict(riga)
 
 
 def cerca_medici_dati(specialita):
+    connessione = apri_connessione()
+    righe = connessione.execute(
+        """SELECT medici.id AS id, medici.nome AS nome, specialita.nome AS specialita
+           FROM medici JOIN specialita ON specialita.id = medici.specialita_id
+           WHERE lower(specialita.nome) = lower(?)""",
+        (specialita,),
+    ).fetchall()
+    connessione.close()
     risultati = []
-    for medico in medici_lista:
-        nome = nome_specialita(medico["specialita_id"])
-        if nome is not None and nome.lower() == specialita.lower():
-            risultati.append({"id": medico["id"], "nome": medico["nome"], "specialita": nome})
+    for riga in righe:
+        risultati.append(dict(riga))
     return risultati
 
 
 def cerca_slot_liberi_dati(specialita, data):
-    adesso = datetime.now()
+    adesso = datetime.now().strftime("%Y-%m-%d %H:%M")
+    connessione = apri_connessione()
+    righe = connessione.execute(
+        query_slot + """ WHERE lower(specialita.nome) = lower(?)
+                         AND slot.data_ora LIKE ?
+                         AND slot.libero = 1
+                         AND slot.data_ora > ?
+                         ORDER BY slot.data_ora""",
+        (specialita, data + "%", adesso),
+    ).fetchall()
+    connessione.close()
     risultati = []
-    for slot in slot_lista:
-        dettagli = trova_slot(slot["id"])
-        if dettagli is not None:
-            stessa_specialita = dettagli["specialita"].lower() == specialita.lower()
-            stesso_giorno = dettagli["data_ora"].startswith(data)
-            futuro = datetime.fromisoformat(dettagli["data_ora"]) > adesso
-            if stessa_specialita and stesso_giorno and dettagli["libero"] and futuro:
-                risultati.append(dettagli)
+    for riga in righe:
+        risultati.append(dict(riga))
     return risultati
 
 
-# Funzioni finte, da sostituire con quelle della Persona 1 (registrazione e ricevuta).
-# Cambiano i dati solo in memoria: nessun file viene modificato.
-
-def nuovo_id(lista):
-    massimo = 0
-    for elemento in lista:
-        if elemento["id"] > massimo:
-            massimo = elemento["id"]
-    return massimo + 1
-
-
-def registra_prenotazione(paziente_id, slot_id, tipo_visita):
-    for slot in slot_lista:
-        if slot["id"] == slot_id:
-            if slot["libero"] == False:
+def registra_prenotazione(paziente_id, slot_id, tipo_visita, importo):
+    # slot occupato e prenotazione inserita nella stessa transazione: o tutte e due o nessuna
+    connessione = apri_connessione()
+    try:
+        with connessione:
+            cursore = connessione.execute(
+                "UPDATE slot SET libero = 0 WHERE id = ? AND libero = 1", (slot_id,)
+            )
+            if cursore.rowcount == 0:
                 return {"errore": "slot non disponibile"}
-            slot["libero"] = False
-            prenotazione = {
-                "id": nuovo_id(prenotazioni_lista),
-                "paziente_id": paziente_id,
-                "slot_id": slot_id,
-                "tipo_visita": tipo_visita,
-                "stato": "confermata",
-            }
-            prenotazioni_lista.append(prenotazione)
-            return prenotazione
-    return {"errore": "slot inesistente"}
+            cursore = connessione.execute(
+                "INSERT INTO prenotazioni (paziente_id, slot_id, tipo_visita, importo) VALUES (?, ?, ?, ?)",
+                (paziente_id, slot_id, tipo_visita, importo),
+            )
+            prenotazione_id = cursore.lastrowid
+        riga = connessione.execute(
+            "SELECT id, stato, creato_il FROM prenotazioni WHERE id = ?", (prenotazione_id,)
+        ).fetchone()
+        return dict(riga)
+    except sqlite3.Error as errore:
+        return {"errore": str(errore)}
+    finally:
+        connessione.close()
 
 
 def salva_ricevuta(ricevuta):
-    ricevuta_completa = {"id": nuovo_id(ricevute_lista)}
-    ricevuta_completa.update(ricevuta)
-    ricevute_lista.append(ricevuta_completa)
-    return ricevuta_completa
+    cartella_ricevute.mkdir(exist_ok=True)
+    percorso = cartella_ricevute / f"ricevuta_{ricevuta['prenotazione_id']:03d}.json"
+    percorso.write_text(json.dumps(ricevuta, indent=4, ensure_ascii=False), encoding="utf-8")
+    return percorso
 
 
 @tool
@@ -220,13 +211,15 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
     })
 
     if str(risposta).strip().lower() != "si":
-        return "Prenotazione annullata: il paziente non ha confermato."
+        return ("Prenotazione NON registrata: il paziente non ha confermato. "
+                "Non dire che la visita è prenotata e non richiamare prenota_visita: "
+                "chiedi al paziente se vuole scegliere un altro orario.")
 
-    prenotazione = registra_prenotazione(paziente["id"], slot_id, descrizione_visita)
+    prenotazione = registra_prenotazione(paziente["id"], slot_id, descrizione_visita, importo)
     if "errore" in prenotazione:
         return "Errore durante la registrazione: " + prenotazione["errore"]
 
-    ricevuta = salva_ricevuta({
+    ricevuta = {
         "prenotazione_id": prenotazione["id"],
         "paziente_id": paziente["id"],
         "slot_id": slot_id,
@@ -238,9 +231,11 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
         "stato": prenotazione["stato"],
         "preparazione": preparazione["frasi"],
         "fonte_preparazione": preparazione["fonte"],
-    })
+        "creata_il": prenotazione["creato_il"],
+    }
+    percorso = salva_ricevuta(ricevuta)
 
-    return "Prenotazione confermata. Ricevuta:\n" + json.dumps(ricevuta, indent=2, ensure_ascii=False)
+    return f"Prenotazione confermata. Ricevuta salvata in ricevute/{percorso.name}:\n" + json.dumps(ricevuta, indent=2, ensure_ascii=False)
 
 
 prompt_booking = """Sei l'assistente prenotazioni del Poliambulatorio Salus Levante.
