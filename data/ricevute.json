@@ -9,11 +9,11 @@
         "data_visita": "2026-11-03T09:00",
         "tipo_visita": "Prima visita",
         "importo": 120,
-        "stato": "confermato",
+        "stato": "confermata",
         "preparazione": [
-            "Portare la lista dei farmaci assunti",
-            "Portare eventuali ECG precedenti",
-            "Evitare il caffè nelle 3 ore precedenti"
-        ]
+            "Portare elenco dei farmaci assunti ed eventuali ECG precedenti",
+            "evitare caffè nelle 3 ore precedenti"
+        ],
+        "fonte_preparazione": "Carta dei Servizi, sezione Preparazione agli esami"
     }
 ]

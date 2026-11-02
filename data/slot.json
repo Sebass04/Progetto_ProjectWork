@@ -5,7 +5,7 @@
         "medico_id": 1,
         "data_ora": "2026-11-03",
         "ora": "09:00",
-        "libero": true
+        "libero": false
     },
     {
         "id": 2,
@@ -207,6 +207,426 @@
         "id": 30,
         "medico_id": 6,
         "data_ora": "2026-11-06",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 31,
+        "medico_id": 1,
+        "data_ora": "2026-11-10",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 32,
+        "medico_id": 1,
+        "data_ora": "2026-11-10",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 33,
+        "medico_id": 1,
+        "data_ora": "2026-11-11",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 34,
+        "medico_id": 1,
+        "data_ora": "2026-11-11",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 35,
+        "medico_id": 1,
+        "data_ora": "2026-11-12",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 36,
+        "medico_id": 2,
+        "data_ora": "2026-11-10",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 37,
+        "medico_id": 2,
+        "data_ora": "2026-11-11",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 38,
+        "medico_id": 2,
+        "data_ora": "2026-11-12",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 39,
+        "medico_id": 2,
+        "data_ora": "2026-11-13",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 40,
+        "medico_id": 2,
+        "data_ora": "2026-11-13",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 41,
+        "medico_id": 3,
+        "data_ora": "2026-11-10",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 42,
+        "medico_id": 3,
+        "data_ora": "2026-11-10",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 43,
+        "medico_id": 3,
+        "data_ora": "2026-11-11",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 44,
+        "medico_id": 3,
+        "data_ora": "2026-11-12",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 45,
+        "medico_id": 3,
+        "data_ora": "2026-11-13",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 46,
+        "medico_id": 4,
+        "data_ora": "2026-11-10",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 47,
+        "medico_id": 4,
+        "data_ora": "2026-11-11",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 48,
+        "medico_id": 4,
+        "data_ora": "2026-11-11",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 49,
+        "medico_id": 4,
+        "data_ora": "2026-11-12",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 50,
+        "medico_id": 4,
+        "data_ora": "2026-11-13",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 51,
+        "medico_id": 5,
+        "data_ora": "2026-11-10",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 52,
+        "medico_id": 5,
+        "data_ora": "2026-11-10",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 53,
+        "medico_id": 5,
+        "data_ora": "2026-11-11",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 54,
+        "medico_id": 5,
+        "data_ora": "2026-11-12",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 55,
+        "medico_id": 5,
+        "data_ora": "2026-11-13",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 56,
+        "medico_id": 6,
+        "data_ora": "2026-11-10",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 57,
+        "medico_id": 6,
+        "data_ora": "2026-11-11",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 58,
+        "medico_id": 6,
+        "data_ora": "2026-11-11",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 59,
+        "medico_id": 6,
+        "data_ora": "2026-11-12",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 60,
+        "medico_id": 6,
+        "data_ora": "2026-11-13",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 61,
+        "medico_id": 1,
+        "data_ora": "2026-11-17",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 62,
+        "medico_id": 1,
+        "data_ora": "2026-11-17",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 63,
+        "medico_id": 1,
+        "data_ora": "2026-11-18",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 64,
+        "medico_id": 1,
+        "data_ora": "2026-11-18",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 65,
+        "medico_id": 1,
+        "data_ora": "2026-11-19",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 66,
+        "medico_id": 2,
+        "data_ora": "2026-11-17",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 67,
+        "medico_id": 2,
+        "data_ora": "2026-11-18",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 68,
+        "medico_id": 2,
+        "data_ora": "2026-11-19",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 69,
+        "medico_id": 2,
+        "data_ora": "2026-11-20",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 70,
+        "medico_id": 2,
+        "data_ora": "2026-11-20",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 71,
+        "medico_id": 3,
+        "data_ora": "2026-11-17",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 72,
+        "medico_id": 3,
+        "data_ora": "2026-11-17",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 73,
+        "medico_id": 3,
+        "data_ora": "2026-11-18",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 74,
+        "medico_id": 3,
+        "data_ora": "2026-11-19",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 75,
+        "medico_id": 3,
+        "data_ora": "2026-11-20",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 76,
+        "medico_id": 4,
+        "data_ora": "2026-11-17",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 77,
+        "medico_id": 4,
+        "data_ora": "2026-11-18",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 78,
+        "medico_id": 4,
+        "data_ora": "2026-11-18",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 79,
+        "medico_id": 4,
+        "data_ora": "2026-11-19",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 80,
+        "medico_id": 4,
+        "data_ora": "2026-11-20",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 81,
+        "medico_id": 5,
+        "data_ora": "2026-11-17",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 82,
+        "medico_id": 5,
+        "data_ora": "2026-11-17",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 83,
+        "medico_id": 5,
+        "data_ora": "2026-11-18",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 84,
+        "medico_id": 5,
+        "data_ora": "2026-11-19",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 85,
+        "medico_id": 5,
+        "data_ora": "2026-11-20",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 86,
+        "medico_id": 6,
+        "data_ora": "2026-11-17",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 87,
+        "medico_id": 6,
+        "data_ora": "2026-11-18",
+        "ora": "10:00",
+        "libero": true
+    },
+    {
+        "id": 88,
+        "medico_id": 6,
+        "data_ora": "2026-11-18",
+        "ora": "11:00",
+        "libero": true
+    },
+    {
+        "id": 89,
+        "medico_id": 6,
+        "data_ora": "2026-11-19",
+        "ora": "09:00",
+        "libero": true
+    },
+    {
+        "id": 90,
+        "medico_id": 6,
+        "data_ora": "2026-11-20",
         "ora": "10:00",
         "libero": true
     }
