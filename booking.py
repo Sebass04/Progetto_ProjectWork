@@ -13,11 +13,13 @@ from rag import cerca_preparazione
 
 llm = get_llm()
 
-if percorso_db.exists() == False:
+if not percorso_db.exists():
     crea_database()
 
 cartella_ricevute = Path(__file__).parent / "ricevute"
 
+giorni_settimana = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
+risposte_si = ["sì", "si", "s", "ok", "confermo", "conferma", "yes"]
 
 def mostra_data(data_ora):
     return datetime.fromisoformat(data_ora).strftime("%d-%m-%Y %H:%M")
@@ -26,12 +28,24 @@ def mostra_data(data_ora):
 def trova_specialita(nome):
     connessione = apri_connessione()
     riga = connessione.execute(
-        "SELECT * FROM specialita WHERE lower(nome) = lower(?)", (nome,)
+        "SELECT * FROM specialita WHERE lower(nome) = lower(?)", (nome.strip(),)
     ).fetchone()
     connessione.close()
     if riga is None:
         return None
     return dict(riga)
+
+def errore_specialita(nome):
+    # se la specialità non esiste, dice all'LLM quali sono quelle valide
+    if trova_specialita(nome) is not None:
+        return None
+    connessione = apri_connessione()
+    righe = connessione.execute("SELECT nome FROM specialita ORDER BY id").fetchall()
+    connessione.close()
+    nomi = []
+    for riga in righe:
+        nomi.append(riga["nome"])
+    return f"Errore: specialità '{nome}' non valida. Specialità disponibili: " + ", ".join(nomi) + "."
 
 
 def trova_paziente(codice_fiscale):
@@ -69,7 +83,7 @@ def cerca_medici_dati(specialita):
         """SELECT medici.id AS id, medici.nome AS nome, specialita.nome AS specialita
            FROM medici JOIN specialita ON specialita.id = medici.specialita_id
            WHERE lower(specialita.nome) = lower(?)""",
-        (specialita,),
+        (specialita.strip(),),
     ).fetchall()
     connessione.close()
     risultati = []
@@ -87,7 +101,7 @@ def cerca_slot_liberi_dati(specialita, data):
                          AND slot.libero = 1
                          AND slot.data_ora > ?
                          ORDER BY slot.data_ora""",
-        (specialita, data + "%", adesso),
+        (specialita.strip(), data + "%", adesso),
     ).fetchall()
     connessione.close()
     risultati = []
@@ -128,12 +142,20 @@ def salva_ricevuta(ricevuta):
     return percorso
 
 
+def data() -> str:
+    """Restituisce la data di oggi (GG-MM-AAAA) e il giorno della settimana.
+        Da usare quando il paziente dice 'domani', 'lunedi prossimo', 'la settimana prossima' e simili"""
+    adesso = datetime.now()
+    return f"Oggi è {giorni_settimana[adesso.weekday()]} {adesso.strftime('%d-%m-%Y')}."
+
+
 @tool
 def cerca_medici(specialita: str) -> str:
     """Cerca i medici di una specialità (Cardiologia, Dermatologia, Ortopedia, Oculistica, Nutrizione)."""
+    errore = errore_specialita(specialita)
+    if errore is not None:
+        return errore
     medici = cerca_medici_dati(specialita)
-    if len(medici) == 0:
-        return f"Nessun medico trovato per la specialità '{specialita}'."
     righe = []
     for medico in medici:
         righe.append(f"- {medico['nome']} ({medico['specialita']})")
@@ -147,6 +169,9 @@ def cerca_slot_liberi(specialita: str, data: str) -> str:
         giorno = datetime.strptime(data, "%d-%m-%Y")
     except ValueError:
         return "Errore: la data deve essere nel formato GG-MM-AAAA, per esempio 03-11-2026."
+    errore = errore_specialita(specialita)
+    if errore is not None:
+        return errore
     slot_liberi = cerca_slot_liberi_dati(specialita, giorno.strftime("%Y-%m-%d"))
     if len(slot_liberi) == 0:
         return f"Nessun orario libero per {specialita} il {giorno.strftime('%d-%m-%Y')}."
@@ -177,7 +202,7 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
     slot = trova_slot(slot_id)
     if slot is None:
         return f"Errore: lo slot {slot_id} non esiste."
-    if slot["libero"] == False:
+    if slot["libero"]:
         giorno = slot["data_ora"][:10]
         altri_slot = cerca_slot_liberi_dati(slot["specialita"], giorno)
         if len(altri_slot) == 0:
@@ -241,6 +266,7 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
 prompt_booking = """Sei l'assistente prenotazioni del Poliambulatorio Salus Levante.
 Per prenotare servono: specialità, data (GG-MM-AAAA), tipo di visita (prima o controllo) e lo slot scelto dal paziente.
 Se manca uno di questi dati, chiedilo al paziente prima di usare i tool.
+Se il paziente dice "domani", "lunedì prossimo" o simili, usa prima data_di_oggi per calcolare la data
 Usa SEMPRE cerca_slot_liberi prima di proporre degli orari.
 Quando mostri gli orari, scrivi sempre il numero dello slot (per esempio "slot 3: 04-11-2026 09:00").
 Quando il paziente indica lo slot da prenotare, chiama SUBITO prenota_visita con quello slot:

@@ -1,9 +1,0 @@
-[
-    {
-    "id": 1,
-    "paziente_id": 1,
-    "slot_id": 1,
-    "tipo_visita": "Prima visita",    
-    "stato": "confermata"
-}
-]
