@@ -22,6 +22,7 @@ parole_urgenza = [
     "dolore al petto", "dolore toracico", "male al petto", "non riesco a respirare", "non respiro",
     "difficoltà a respirare", "difficolta a respirare", "svenuto", "svenuta", "svenimento",
     "sto per svenire", "perdita di coscienza", "ho perso conoscenza", "infarto", "ictus", "emergenza",
+    "mi fa male il petto", "male il petto", "male al cuore", "mi fa male il cuore",
 ]
 
 parole_diagnosi = [
@@ -68,6 +69,8 @@ router_llm = llm.with_structured_output(Rotta)
 prompt_router = """Classifica l'ultima richiesta del paziente di un poliambulatorio.
 - info: orari, tariffe, documenti, preparazione alle visite, disdette, pagamenti, referti.
   Anche le domande su cosa portare o come prepararsi a una visita (per esempio farmaci da portare) sono info.
+- Se il paziente chiede di prenotare o nomina un medico o uno specialista (per esempio "ho bisogno di un cardiologo"), è booking, 
+  anche se in precedenza ha parlato di sintomi.
 - booking: prenotare una visita, scegliere data, orario o slot, rispondere alle domande della prenotazione.
 - diagnosi: sintomi, malattie, richieste di diagnosi o di consigli medici.
 - altro: saluti e tutto il resto.
@@ -77,6 +80,12 @@ Se la conversazione è una prenotazione in corso, scegli booking."""
 def router(stato: Stato) -> dict:
     # solo messaggi di testo: i ToolMessage dell'agente Booking confondono il router
     solo_testo = [m for m in stato["messages"] if m.type in ("human", "ai") and m.content]
+
+    for numero in range(len(solo_testo)- 1, -1, -1):
+        if solo_testo[numero].type == "ai" and solo_testo[numero].content == risposta_standard_112:
+            solo_testo = solo_testo[numero + 1:]
+            break
+
     rotta = router_llm.invoke([SystemMessage(prompt_router)] + solo_testo[-4:])
     return {"intento": rotta.intento}
 
