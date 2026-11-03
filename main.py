@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.memory import InMemoryStore
 from langgraph.types import Command
 from config import get_llm
-from booking import agente_booking, trova_paziente
+from booking import agente_booking, trova_paziente, leggi_preferenze
 from rag import agente_info
 
 llm = get_llm()
@@ -121,7 +122,9 @@ costruttore.add_edge("agente_info", END)
 costruttore.add_edge("agente_booking", END)
 costruttore.add_edge("risposta_cortesia", END)
 
-grafo = costruttore.compile(checkpointer=InMemorySaver())
+# checkpointer = memoria della singola conversazione; store = preferenze del paziente, condivise tra le conversazioni
+memoria_preferenze = InMemoryStore()
+grafo = costruttore.compile(checkpointer=InMemorySaver(), store=memoria_preferenze)
 
 
 def salva_diagramma():
@@ -137,21 +140,17 @@ def mostra_riepilogo(riepilogo):
             print(f"   {chiave}: {riepilogo[chiave]}")
 
 
-def chat():
-    codice_fiscale = input("Codice fiscale: ").strip().upper()
-    paziente = trova_paziente(codice_fiscale)
-    if paziente is None:
-        print("Codice fiscale non trovato: rivolgersi all'accettazione.")
-        return
-
-    config = {"configurable": {"thread_id": codice_fiscale}}
-    print(f"Benvenuto {paziente['nome']}. Scrivi /esci per terminare.")
+def conversazione(paziente, config):
+    print(f"Benvenuto {paziente['nome']}. Scrivi /esci per terminare la conversazione.")
+    preferenze = leggi_preferenze(memoria_preferenze, paziente["codice_fiscale"])
+    if preferenze is not None:
+        print(f"Dalle visite precedenti: medico preferito {preferenze['medico']}, fascia preferita {preferenze['fascia']}.")
 
     while True:
         testo = input("Tu: ")
         if testo == "/esci":
             print("Arrivederci!")
-            break
+            return
 
         risultato = grafo.invoke({"messages": [("user", testo)]}, config)
 
@@ -168,6 +167,25 @@ def chat():
             risultato = grafo.invoke(Command(resume=risposte), config)
 
         print("Assistente:", risultato["messages"][-1].content)
+
+
+def chat():
+    # come uno sportello: dopo /esci si torna al codice fiscale e ogni accesso è una conversazione nuova
+    numero_conversazione = 0
+    while True:
+        codice_fiscale = input("Codice fiscale (/fine per chiudere il programma): ").strip().upper()
+        if codice_fiscale == "/FINE":
+            break
+        paziente = trova_paziente(codice_fiscale)
+        if paziente is None:
+            print("Codice fiscale non trovato: rivolgersi all'accettazione.")
+        else:
+            numero_conversazione = numero_conversazione + 1
+            config = {"configurable": {
+                "thread_id": f"{codice_fiscale}-{numero_conversazione}",
+                "codice_fiscale": codice_fiscale,
+            }}
+            conversazione(paziente, config)
 
 
 if __name__ == "__main__":

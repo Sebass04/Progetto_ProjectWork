@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 from langchain.agents import create_agent
 from langgraph.types import interrupt
+from langgraph.config import get_store
 from config import get_llm
 from db import apri_connessione, crea_database, percorso_db
 from rag import cerca_preparazione
@@ -142,6 +143,26 @@ def salva_ricevuta(ricevuta):
     return percorso
 
 
+# ---------- Preferenze del paziente (Store: memoria condivisa tra le conversazioni) ----------
+def fascia_oraria(data_ora):
+    if datetime.fromisoformat(data_ora).hour < 13:
+        return "mattina"
+    else:
+        return "pomeriggio"
+
+
+def salva_preferenze(memoria, codice_fiscale, slot):
+    preferenze = {"medico": slot["medico"], "fascia": fascia_oraria(slot["data_ora"])}
+    memoria.put(("pazienti", codice_fiscale), "preferenze", preferenze)
+
+
+def leggi_preferenze(memoria, codice_fiscale):
+    elemento = memoria.get(("pazienti", codice_fiscale), "preferenze")
+    if elemento is None:
+        return None
+    return elemento.value
+
+
 @tool
 def data_di_oggi() -> str:
     """Restituisce la data di oggi (GG-MM-AAAA) e il giorno della settimana.
@@ -164,7 +185,7 @@ def cerca_medici(specialita: str) -> str:
 
 
 @tool
-def cerca_slot_liberi(specialita: str, data: str) -> str:
+def cerca_slot_liberi(specialita: str, data: str, config: RunnableConfig) -> str:
     """Cerca gli orari liberi per una specialità in una data nel formato GG-MM-AAAA.
     Accetta anche le parole 'oggi', 'domani' e 'dopodomani'."""
     giorni_da_aggiungere = {"oggi": 0, "domani": 1, "dopodomani": 2}
@@ -182,9 +203,23 @@ def cerca_slot_liberi(specialita: str, data: str) -> str:
     slot_liberi = cerca_slot_liberi_dati(specialita, giorno.strftime("%Y-%m-%d"))
     if len(slot_liberi) == 0:
         return f"Nessun orario libero per {specialita} il {giorno.strftime('%d-%m-%Y')}."
+
+    codice_fiscale = config["configurable"]["codice_fiscale"]
+    preferenze = leggi_preferenze(get_store(), codice_fiscale)
     righe = []
     for slot in slot_liberi:
-        righe.append(f"- slot {slot['slot_id']}: {mostra_data(slot['data_ora'])} con {slot['medico']}")
+        riga = f"- slot {slot['slot_id']}: {mostra_data(slot['data_ora'])} con {slot['medico']}"
+        if preferenze is not None:
+            note = []
+            if slot["medico"] == preferenze["medico"]:
+                note.append("medico preferito")
+            if fascia_oraria(slot["data_ora"]) == preferenze["fascia"]:
+                note.append("fascia preferita")
+            if len(note) > 0:
+                riga = riga + " (" + ", ".join(note) + ")"
+        righe.append(riga)
+    if preferenze is not None:
+        righe.append("Mostra al paziente queste righe così come sono, comprese le note tra parentesi sulle preferenze.")
     return "\n".join(righe)
 
 
@@ -192,8 +227,8 @@ def cerca_slot_liberi(specialita: str, data: str) -> str:
 def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> str:
     """Prenota lo slot scelto dal paziente. tipo_visita deve essere 'prima' oppure 'controllo'.
     Chiede sempre la conferma al paziente prima di registrare."""
-    # il codice fiscale arriva dal thread della conversazione, non dall'LLM
-    codice_fiscale = config["configurable"]["thread_id"].strip().upper()
+    # il codice fiscale arriva dalla configurazione della chat, non dall'LLM
+    codice_fiscale = config["configurable"]["codice_fiscale"]
     paziente = trova_paziente(codice_fiscale)
     if paziente is None:
         return "Errore: paziente non registrato. Rivolgersi all'accettazione."
@@ -267,6 +302,8 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
         "creata_il": prenotazione["creato_il"],
     }
     percorso = salva_ricevuta(ricevuta)
+    # le preferenze si aggiornano da sole, solo dopo una prenotazione confermata e registrata
+    salva_preferenze(get_store(), codice_fiscale, slot)
 
     return f"Prenotazione confermata. Ricevuta salvata in ricevute/{percorso.name}:\n" + json.dumps(ricevuta, indent=2, ensure_ascii=False)
 

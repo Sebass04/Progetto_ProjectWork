@@ -21,6 +21,15 @@ PREPARAZIONE DELL'AMBIENTE VIRTUALE E DEI MODELLI DA USARE
     - crea medibook.db a partire da schema.sql (se manca, viene creato anche in automatico al primo avvio)
     - se si modifica schema.sql bisogna rilanciare python db.py
 
+5. Avviare l'assistente
+    - python main.py (chiede il codice fiscale del paziente)
+    - /esci chiude la conversazione e si torna al codice fiscale: ogni accesso è una conversazione nuova
+    - /fine al posto del codice fiscale chiude il programma
+    - preferenze del paziente (Store): dopo ogni prenotazione confermata vengono salvati il medico e la fascia
+      oraria (mattina o pomeriggio) di quella prenotazione, al posto dei precedenti; al nuovo accesso dello
+      stesso paziente vengono mostrati e negli orari liberi sono segnati "medico preferito" e "fascia preferita"
+    - le preferenze sono in memoria (InMemoryStore): chiudendo il programma si perdono
+
 MODELLI DA USARE:
 - MODELLO-CHAT: qwen2.5:latest
 - MODELLO-EMBEDDING: bge-m3:latest
