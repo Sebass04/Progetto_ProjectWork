@@ -2,7 +2,7 @@ import os
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 # Modello per la chat e gli agenti
-MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:latest")
+MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 
 # Modello per gli embedding del RAG
 EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "bge-m3:latest")

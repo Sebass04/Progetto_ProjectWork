@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from langchain_core.tools import tool
@@ -142,9 +142,10 @@ def salva_ricevuta(ricevuta):
     return percorso
 
 
-def data() -> str:
+@tool
+def data_di_oggi() -> str:
     """Restituisce la data di oggi (GG-MM-AAAA) e il giorno della settimana.
-        Da usare quando il paziente dice 'domani', 'lunedi prossimo', 'la settimana prossima' e simili"""
+    Da usare quando il paziente dice 'domani', 'lunedì prossimo', 'la settimana prossima' e simili."""
     adesso = datetime.now()
     return f"Oggi è {giorni_settimana[adesso.weekday()]} {adesso.strftime('%d-%m-%Y')}."
 
@@ -164,11 +165,17 @@ def cerca_medici(specialita: str) -> str:
 
 @tool
 def cerca_slot_liberi(specialita: str, data: str) -> str:
-    """Cerca gli orari liberi per una specialità in una data nel formato GG-MM-AAAA."""
-    try:
-        giorno = datetime.strptime(data, "%d-%m-%Y")
-    except ValueError:
-        return "Errore: la data deve essere nel formato GG-MM-AAAA, per esempio 03-11-2026."
+    """Cerca gli orari liberi per una specialità in una data nel formato GG-MM-AAAA.
+    Accetta anche le parole 'oggi', 'domani' e 'dopodomani'."""
+    giorni_da_aggiungere = {"oggi": 0, "domani": 1, "dopodomani": 2}
+    parola = data.strip().lower()
+    if parola in giorni_da_aggiungere:
+        giorno = datetime.now() + timedelta(days=giorni_da_aggiungere[parola])
+    else:
+        try:
+            giorno = datetime.strptime(data.strip(), "%d-%m-%Y")
+        except ValueError:
+            return "Errore: la data deve essere nel formato GG-MM-AAAA, per esempio 03-11-2026."
     errore = errore_specialita(specialita)
     if errore is not None:
         return errore
@@ -202,7 +209,7 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
     slot = trova_slot(slot_id)
     if slot is None:
         return f"Errore: lo slot {slot_id} non esiste."
-    if slot["libero"]:
+    if slot["libero"] == 0:
         giorno = slot["data_ora"][:10]
         altri_slot = cerca_slot_liberi_dati(slot["specialita"], giorno)
         if len(altri_slot) == 0:
@@ -235,7 +242,8 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
         "preparazione": preparazione["frasi"],
     })
 
-    if str(risposta).strip().lower() != "si":
+    confermato = str(risposta).strip().lower() in risposte_si
+    if confermato == False:
         return ("Prenotazione NON registrata: il paziente non ha confermato. "
                 "Non dire che la visita è prenotata e non richiamare prenota_visita: "
                 "chiedi al paziente se vuole scegliere un altro orario.")
@@ -266,7 +274,7 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
 prompt_booking = """Sei l'assistente prenotazioni del Poliambulatorio Salus Levante.
 Per prenotare servono: specialità, data (GG-MM-AAAA), tipo di visita (prima o controllo) e lo slot scelto dal paziente.
 Se manca uno di questi dati, chiedilo al paziente prima di usare i tool.
-Se il paziente dice "domani", "lunedì prossimo" o simili, usa prima data_di_oggi per calcolare la data
+Se il paziente dice "domani", "lunedì prossimo" o simili, usa prima data_di_oggi per calcolare la data.
 Usa SEMPRE cerca_slot_liberi prima di proporre degli orari.
 Quando mostri gli orari, scrivi sempre il numero dello slot (per esempio "slot 3: 04-11-2026 09:00").
 Quando il paziente indica lo slot da prenotare, chiama SUBITO prenota_visita con quello slot:
@@ -278,6 +286,6 @@ Non dare consigli medici. Rispondi sempre in italiano."""
 
 agente_booking = create_agent(
     model=llm,
-    tools=[cerca_medici, cerca_slot_liberi, prenota_visita],
+    tools=[data_di_oggi, cerca_medici, cerca_slot_liberi, prenota_visita],
     system_prompt=prompt_booking,
 )

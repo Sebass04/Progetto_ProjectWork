@@ -26,7 +26,7 @@ parole_urgenza = [
 
 parole_diagnosi = [
     "mi fai una diagnosi", "fammi una diagnosi", "che malattia ho", "quale farmaco devo prendere",
-    "che medicina devo prendere", "che farmaco", "che medicina",
+    "che medicina devo prendere", "che farmaco devo prendere", "che farmaci devo prendere",
 ]
 
 risposta_standard_112 = (
@@ -67,6 +67,7 @@ router_llm = llm.with_structured_output(Rotta)
 
 prompt_router = """Classifica l'ultima richiesta del paziente di un poliambulatorio.
 - info: orari, tariffe, documenti, preparazione alle visite, disdette, pagamenti, referti.
+  Anche le domande su cosa portare o come prepararsi a una visita (per esempio farmaci da portare) sono info.
 - booking: prenotare una visita, scegliere data, orario o slot, rispondere alle domande della prenotazione.
 - diagnosi: sintomi, malattie, richieste di diagnosi o di consigli medici.
 - altro: saluti e tutto il resto.
