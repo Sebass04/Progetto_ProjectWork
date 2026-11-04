@@ -5,6 +5,7 @@ from langchain_core.documents import Document
 from langchain_core.messages import SystemMessage
 from langchain_chroma import Chroma
 from langgraph.graph import StateGraph, MessagesState, START, END
+from langgraph.config import get_stream_writer
 from config import get_llm, get_embeddings
 
 cartella = Path(__file__).parent
@@ -84,6 +85,8 @@ def messaggi_di_testo(stato):
 def recupera(stato: StatoInfo) -> dict:
     # uso le ultime due domande, così "e per la dermatologia?" ha ancora senso
     domande = [m.content for m in messaggi_di_testo(stato) if m.type == "human"]
+    scrittore = get_stream_writer()
+    scrittore({"avanzamento": "Sto cercando nella Carta dei Servizi..."})
     documenti = retriever.invoke(" ".join(domande[-2:]))
     return {"contesto": formatta_documenti(documenti)}
 

@@ -29,6 +29,9 @@ PREPARAZIONE DELL'AMBIENTE VIRTUALE E DEI MODELLI DA USARE
       oraria (mattina o pomeriggio) di quella prenotazione, al posto dei precedenti; al nuovo accesso dello
       stesso paziente vengono mostrati e negli orari liberi sono segnati "medico preferito" e "fascia preferita"
     - le preferenze sono in memoria (InMemoryStore): chiudendo il programma si perdono
+    - streaming custom: mentre lavora, l'assistente stampa righe di avanzamento che iniziano con "..."
+      (per esempio "... Sto cercando gli orari liberi di Cardiologia per il 05-11-2026...");
+      le mandano il router, l'agente Info e i tool dell'agente Booking; il testo della risposta arriva tutto insieme
 
 MODELLI DA USARE:
 - MODELLO-CHAT: qwen2.5:latest

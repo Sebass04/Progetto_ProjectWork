@@ -7,7 +7,7 @@ from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 from langchain.agents import create_agent
 from langgraph.types import interrupt
-from langgraph.config import get_store
+from langgraph.config import get_store, get_stream_writer
 from config import get_llm
 from db import apri_connessione, crea_database, percorso_db
 from rag import cerca_preparazione
@@ -177,6 +177,8 @@ def cerca_medici(specialita: str) -> str:
     errore = errore_specialita(specialita)
     if errore is not None:
         return errore
+    scrittore = get_stream_writer()
+    scrittore({"avanzamento": f"Sto cercando i medici di {specialita}..."})
     medici = cerca_medici_dati(specialita)
     righe = []
     for medico in medici:
@@ -200,6 +202,8 @@ def cerca_slot_liberi(specialita: str, data: str, config: RunnableConfig) -> str
     errore = errore_specialita(specialita)
     if errore is not None:
         return errore
+    scrittore = get_stream_writer()
+    scrittore({"avanzamento": f"Sto cercando gli orari liberi di {specialita} per il {giorno.strftime('%d-%m-%Y')}..."})
     slot_liberi = cerca_slot_liberi_dati(specialita, giorno.strftime("%Y-%m-%d"))
     if len(slot_liberi) == 0:
         return f"Nessun orario libero per {specialita} il {giorno.strftime('%d-%m-%Y')}."
@@ -283,6 +287,10 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
                 "Non dire che la visita è prenotata e non richiamare prenota_visita: "
                 "chiedi al paziente se vuole scegliere un altro orario.")
 
+    # i messaggi di avanzamento stanno dopo l'interrupt: alla ripresa il tool riparte dall'inizio
+    # e un messaggio scritto prima verrebbe stampato due volte
+    scrittore = get_stream_writer()
+    scrittore({"avanzamento": "Sto registrando la prenotazione..."})
     prenotazione = registra_prenotazione(paziente["id"], slot_id, descrizione_visita, importo)
     if "errore" in prenotazione:
         return "Errore durante la registrazione: " + prenotazione["errore"]
@@ -301,6 +309,7 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
         "fonte_preparazione": preparazione["fonte"],
         "creata_il": prenotazione["creato_il"],
     }
+    scrittore({"avanzamento": "Sto salvando la ricevuta..."})
     percorso = salva_ricevuta(ricevuta)
     # le preferenze si aggiornano da sole, solo dopo una prenotazione confermata e registrata
     salva_preferenze(get_store(), codice_fiscale, slot)
