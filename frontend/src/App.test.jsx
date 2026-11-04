@@ -118,7 +118,7 @@ async function checkPreferences(user) {
 }
 
 async function startPending(user) {
-  route = async request => request.path.endsWith('/messages') ? response({ messages: [], pending: PENDING, receipt: null, preferences: null }) : undefined;
+  route = async request => request.path.endsWith('/messages/stream') ? response({ messages: [], pending: PENDING, receipt: null, preferences: null }) : undefined;
   await user.type(screen.getByRole('textbox', { name: 'Scrivi a Salus' }), 'Vorrei prenotare una visita cardiologica');
   await user.click(screen.getByRole('button', { name: 'Invia messaggio' }));
   await screen.findByRole('button', { name: 'Conferma prenotazione' });
@@ -148,7 +148,7 @@ describe('Salus: accesso e conversazione', () => {
   });
 
   it('accede, invia una domanda e rende la risposta Markdown ricevuta dal backend', async () => {
-    route = async request => request.path.endsWith('/messages') ? response({
+    route = async request => request.path.endsWith('/messages/stream') ? response({
       messages: [{ id: 'answer-1', role: 'assistant', content: '**Accettazione**\n\n- Dal lunedì al venerdì\n\nFonte: Orari.' }], pending: null, receipt: null, preferences: null,
     }) : undefined;
     const user = await mount();
@@ -160,21 +160,21 @@ describe('Salus: accesso e conversazione', () => {
     await within(log).findByText('Accettazione');
     expect(within(log).getByText('Accettazione').tagName).toBe('STRONG');
     expect(within(log).getByRole('listitem')).toHaveTextContent('Dal lunedì al venerdì');
-    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/messages`)[0][1].body)).toEqual({ message: 'Quali sono gli orari?' });
+    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)[0][1].body)).toEqual({ message: 'Quali sono gli orari?' });
     expect(input).toHaveValue('');
     expect(input).toBeEnabled();
   });
 
   it('blocca invii concorrenti mentre il backend elabora una domanda', async () => {
     const reply = deferred();
-    route = async request => request.path.endsWith('/messages') ? reply.promise : undefined;
+    route = async request => request.path.endsWith('/messages/stream') ? reply.promise : undefined;
     const user = await mount();
     await signIn(user);
     const input = screen.getByRole('textbox', { name: 'Scrivi a Salus' });
     await user.type(input, 'Quali documenti porto?');
     await user.dblClick(screen.getByRole('button', { name: 'Invia messaggio' }));
     expect(input).toBeDisabled();
-    expect(requests(`/api/sessions/${SESSION.session_id}/messages`)).toHaveLength(1);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(1);
     await act(async () => reply.resolve(response({ messages: [{ id: 'answer-docs', role: 'assistant', content: 'Porta la tessera sanitaria.' }], pending: null })));
     await screen.findByText('Porta la tessera sanitaria.');
     expect(input).toBeEnabled();
@@ -185,8 +185,8 @@ describe('Salus: appuntamenti e conferma esplicita', () => {
   it('invia lo slot scelto in chat al grafo e registra solo dopo un singolo sì', async () => {
     const confirmation = deferred();
     route = async request => {
-      if (request.path.endsWith('/messages')) return response({ messages: [], pending: PENDING, receipt: null, preferences: null });
-      if (request.path.endsWith('/confirm')) return confirmation.promise;
+      if (request.path.endsWith('/messages/stream')) return response({ messages: [], pending: PENDING, receipt: null, preferences: null });
+      if (request.path.endsWith('/confirm/stream')) return confirmation.promise;
       return undefined;
     };
     const user = await mount();
@@ -196,12 +196,12 @@ describe('Salus: appuntamenti e conferma esplicita', () => {
     await user.click(screen.getByRole('button', { name: 'Invia messaggio' }));
     const confirm = await screen.findByRole('button', { name: 'Conferma prenotazione' });
     expect(screen.getByRole('textbox', { name: 'Scrivi a Salus' })).toBeDisabled();
-    expect(requests(`/api/sessions/${SESSION.session_id}/confirm`)).toHaveLength(0);
-    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/messages`)[0][1].body).message).toContain('slot 17');
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(0);
+    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)[0][1].body).message).toContain('slot 17');
     expect(screen.getByText('Portare gli ECG precedenti')).toBeInTheDocument();
     await user.dblClick(confirm);
-    expect(requests(`/api/sessions/${SESSION.session_id}/confirm`)).toHaveLength(1);
-    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/confirm`)[0][1].body)).toEqual({ answer: 'si' });
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(1);
+    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)[0][1].body)).toEqual({ answer: 'si' });
     await act(async () => confirmation.resolve(response({ messages: [{ id: 'confirmed', role: 'assistant', content: 'Prenotazione registrata.' }], pending: null, receipt: RECEIPT, preferences: PREFERENCES })));
     await screen.findByText('Ci vediamo presto.');
     expect(screen.getByRole('link', { name: /Scarica ricevuta/ })).toHaveAttribute('href', `/api/sessions/${SESSION.session_id}/receipt/4`);
@@ -215,10 +215,10 @@ describe('Salus: appuntamenti e conferma esplicita', () => {
     const user = await mount();
     await signIn(user);
     await startPending(user);
-    route = async request => request.path.endsWith('/confirm') ? response({ messages: [{ id: 'declined', role: 'assistant', content: 'Prenotazione non registrata. Scegliamo un altro orario?' }], pending: null, receipt: null, preferences: null }) : undefined;
+    route = async request => request.path.endsWith('/confirm/stream') ? response({ messages: [{ id: 'declined', role: 'assistant', content: 'Prenotazione non registrata. Scegliamo un altro orario?' }], pending: null, receipt: null, preferences: null }) : undefined;
     await user.click(screen.getByRole('button', { name: 'Non confermare' }));
     await screen.findByText('Prenotazione non registrata. Scegliamo un altro orario?');
-    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/confirm`)[0][1].body)).toEqual({ answer: 'no' });
+    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)[0][1].body)).toEqual({ answer: 'no' });
     expect(screen.queryByRole('link', { name: /Scarica ricevuta/ })).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Scrivi a Salus' })).toBeEnabled();
   });
@@ -228,14 +228,14 @@ describe('Salus: appuntamenti e conferma esplicita', () => {
     await signIn(user);
     await startPending(user);
     snapshot = { ...SESSION, messages: [{ id: 'stored-user', role: 'user', content: 'Vorrei prenotare una visita cardiologica' }], pending: PENDING, receipt: null };
-    route = async request => request.path.endsWith('/confirm') ? response({ detail: 'Modello temporaneamente non disponibile.' }, 503) : undefined;
+    route = async request => request.path.endsWith('/confirm/stream') ? response({ detail: 'Modello temporaneamente non disponibile.' }, 503) : undefined;
     await user.click(screen.getByRole('button', { name: 'Conferma prenotazione' }));
     await screen.findByText('Modello temporaneamente non disponibile.');
     await waitFor(() => expect(requests(`/api/sessions/${SESSION.session_id}`, 'GET')).toHaveLength(1));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Conferma prenotazione' })).toBeEnabled());
     expect(screen.getByRole('textbox', { name: 'Scrivi a Salus' })).toBeDisabled();
     expect(screen.queryByRole('link', { name: /Scarica ricevuta/ })).not.toBeInTheDocument();
-    expect(requests(`/api/sessions/${SESSION.session_id}/confirm`)).toHaveLength(1);
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(1);
   });
 });
 
@@ -259,8 +259,8 @@ describe('Salus: ciclo della sessione', () => {
     await screen.findByText('La risposta completata prima del ripristino.', {}, { timeout: 3000 });
     expect(requests(`/api/sessions/${SESSION.session_id}`, 'GET')).toHaveLength(2);
     expect(requests('/api/sessions')).toHaveLength(0);
-    expect(requests(`/api/sessions/${SESSION.session_id}/messages`)).toHaveLength(0);
-    expect(requests(`/api/sessions/${SESSION.session_id}/confirm`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(0);
     expect(sessionStorage.getItem('salus-session')).toBe(SESSION.session_id);
     expect(screen.getByRole('textbox', { name: 'Scrivi a Salus' })).toBeEnabled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -284,7 +284,7 @@ describe('Salus: ciclo della sessione', () => {
     expect(screen.getByText('N° 004')).toBeInTheDocument();
     expect(screen.getByText('N° 005')).toBeInTheDocument();
     expect(requests('/api/sessions')).toHaveLength(0);
-    expect(requests(`/api/sessions/${SESSION.session_id}/confirm`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(0);
   });
 
   it('mantiene la ricevuta accanto alla conferma originale prima dei messaggi successivi dopo il ripristino', async () => {
@@ -321,8 +321,8 @@ describe('Salus: ciclo della sessione', () => {
     expect(screen.getByRole('button', { name: 'Conferma prenotazione' })).toBeEnabled();
     await checkPreferences(user);
     expect(requests('/api/sessions')).toHaveLength(0);
-    expect(requests(`/api/sessions/${SESSION.session_id}/messages`)).toHaveLength(0);
-    expect(requests(`/api/sessions/${SESSION.session_id}/confirm`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(0);
   });
 
   it('termina la sessione solo dopo la conferma di uscita e rimuove il riferimento salvato', async () => {
@@ -414,7 +414,7 @@ describe('Salus: menu essenziale e prenotazioni del paziente', () => {
     expect(within(items[0]).getByRole('link', { name: /Scarica ricevuta JSON/ })).toHaveAttribute('href', `/api/sessions/${SESSION.session_id}/receipt/4`);
     expect(within(items[1]).queryByRole('link', { name: /Scarica ricevuta/ })).not.toBeInTheDocument();
     expect(requests(`/api/sessions/${SESSION.session_id}/bookings`, 'GET')).toHaveLength(1);
-    expect(requests(`/api/sessions/${SESSION.session_id}/messages`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(0);
     await user.click(within(dialog).getByRole('button', { name: 'Chiudi prenotazioni' }));
     await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
   });
@@ -451,7 +451,7 @@ describe('Salus: menu essenziale e prenotazioni del paziente', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Riprova', exact: true }));
     expect(await within(dialog).findByText('Prenotazione #4')).toBeVisible();
     expect(requests(`/api/sessions/${SESSION.session_id}/bookings`, 'GET')).toHaveLength(2);
-    expect(requests(`/api/sessions/${SESSION.session_id}/confirm`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(0);
     expect(requests('/api/sessions')).toHaveLength(1);
   });
 });
@@ -514,7 +514,7 @@ describe('Salus: copia, profilo e finestre essenziali', () => {
     expect(menu).toHaveAttribute('open');
     expect(within(menu).queryByRole('region', { name: 'Codice fiscale del paziente' })).not.toBeInTheDocument();
     expect(requests(`/api/sessions/${SESSION.session_id}`, 'DELETE')).toHaveLength(0);
-    expect(requests(`/api/sessions/${SESSION.session_id}/messages`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(0);
     expect(sessionStorage.getItem('salus-session')).toBe(SESSION.session_id);
   });
 
@@ -550,17 +550,112 @@ describe('Salus: suggerimenti coerenti con le richieste del backend', () => {
     ['Pagamenti e referti', 'Come posso pagare e dove trovo i miei referti?'],
   ])('invia la richiesta pertinente a %s senza suggerire prelievi', async (title, text) => {
     sessionStorage.setItem('salus-session', SESSION.session_id);
-    route = async request => request.path.endsWith('/messages') ? response({ messages: [{ id: 'suggestion-answer', role: 'assistant', content: 'Ti aiuto con questa richiesta.' }], pending: null }) : undefined;
+    route = async request => request.path.endsWith('/messages/stream') ? response({ messages: [{ id: 'suggestion-answer', role: 'assistant', content: 'Ti aiuto con questa richiesta.' }], pending: null }) : undefined;
     const user = await mount();
     await screen.findByRole('button', { name: 'Mostra codice fiscale', exact: true });
     expect(document.body.textContent).not.toMatch(/preliev/i);
     await user.click(screen.getByRole('button', { name: title, exact: true }));
     await screen.findByText('Ti aiuto con questa richiesta.');
-    expect(requests(`/api/sessions/${SESSION.session_id}/messages`)).toHaveLength(1);
-    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/messages`)[0][1].body)).toEqual({ message: text });
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(1);
+    expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)[0][1].body)).toEqual({ message: text });
     if (title === 'Prenota una visita') {
-      expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/messages`)[0][1].body).message).not.toMatch(/cardiolog/i);
+      expect(JSON.parse(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)[0][1].body).message).not.toMatch(/cardiolog/i);
     }
     expect(screen.queryByRole('button', { name: title, exact: true })).not.toBeInTheDocument();
+  });
+});
+
+
+describe('Salus: avanzamento in tempo reale e comando prenotazioni', () => {
+  it('mostra l’avanzamento NDJSON mentre conserva la conversazione e aggiunge soltanto la risposta finale', async () => {
+    sessionStorage.setItem('salus-session', SESSION.session_id);
+    snapshot = { ...SESSION, messages: [{ id: 'previous-answer', role: 'assistant', content: 'La risposta precedente resta disponibile.' }], pending: null };
+    const encoder = new TextEncoder();
+    let controller;
+    const stream = new ReadableStream({ start(value) { controller = value; } });
+    route = async request => request.path.endsWith('/messages/stream') ? {
+      ok: true, status: 200,
+      headers: { get: name => name.toLowerCase() === 'content-type' ? 'application/x-ndjson' : null },
+      body: stream,
+    } : undefined;
+    const user = await mount();
+    await screen.findByText('La risposta precedente resta disponibile.');
+    await user.type(screen.getByRole('textbox', { name: 'Scrivi a Salus' }), 'Quali documenti porto?');
+    await user.dblClick(screen.getByRole('button', { name: 'Invia messaggio' }));
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(1);
+    expect(screen.getByRole('textbox', { name: 'Scrivi a Salus' })).toBeDisabled();
+    expect(screen.getByText('La risposta precedente resta disponibile.')).toBeVisible();
+
+    await act(async () => controller.enqueue(encoder.encode(JSON.stringify({ type: 'progress', message: 'Sto scegliendo il percorso giusto…' }) + '\n')));
+    expect(await screen.findByText('Sto scegliendo il percorso giusto…')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Scrivi a Salus' })).toBeDisabled();
+    await act(async () => controller.enqueue(encoder.encode(JSON.stringify({ type: 'progress', message: 'Cerco nella Carta dei Servizi…' }) + '\n')));
+    expect(await screen.findByText('Cerco nella Carta dei Servizi…')).toBeVisible();
+    expect(screen.queryByText('Sto scegliendo il percorso giusto…')).not.toBeInTheDocument();
+
+    await act(async () => {
+      controller.enqueue(encoder.encode(JSON.stringify({ type: 'result', data: { messages: [{ id: 'stream-final', role: 'assistant', content: 'Porta tessera sanitaria e documento di identità.' }], pending: null, receipt: null } }) + '\n'));
+      controller.close();
+    });
+    expect(await screen.findByText('Porta tessera sanitaria e documento di identità.')).toBeVisible();
+    expect(screen.getAllByText('La risposta precedente resta disponibile.')).toHaveLength(1);
+    expect(screen.getAllByText('Porta tessera sanitaria e documento di identità.')).toHaveLength(1);
+    expect(screen.queryByText('Cerco nella Carta dei Servizi…')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Scrivi a Salus' })).toBeEnabled();
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(1);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}`, 'GET')).toHaveLength(1);
+  });
+
+  it('apre /prenotazioni sulle visite in programma senza chiamare il modello e permette di passare allo storico completo', async () => {
+    const futureBooking = { ...RECEIPT, data_visita: '2099-01-10 10:30', receipt_available: false };
+    const pastBooking = { ...RECEIPT, prenotazione_id: 1, data_visita: '2020-01-10 09:00', receipt_available: false };
+    route = async request => request.path === `/api/sessions/${SESSION.session_id}/bookings`
+      ? response({ bookings: request.query.get('scope') === 'future' ? [futureBooking] : [futureBooking, pastBooking] }) : undefined;
+    const user = await mount();
+    await signIn(user);
+    await user.type(screen.getByRole('textbox', { name: 'Scrivi a Salus' }), '/prenotazioni{Enter}');
+    const dialog = await screen.findByRole('dialog', { name: 'Le mie prenotazioni' });
+    const filters = within(dialog).getByRole('group', { name: 'Filtra prenotazioni' });
+    expect(within(filters).getByRole('button', { name: 'In programma' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(filters).getByRole('button', { name: 'Tutte', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    const list = await within(dialog).findByRole('list', { name: 'Elenco delle tue prenotazioni' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    let bookingRequests = requests(`/api/sessions/${SESSION.session_id}/bookings`, 'GET');
+    expect(bookingRequests).toHaveLength(1);
+    expect(new URL(bookingRequests[0][0], window.location.origin).searchParams.get('scope')).toBe('future');
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(0);
+    expect(screen.getByRole('textbox', { name: 'Scrivi a Salus' })).toHaveValue('');
+
+    await user.click(within(filters).getByRole('button', { name: 'Tutte', exact: true }));
+    await waitFor(() => expect(within(dialog).getAllByRole('listitem')).toHaveLength(2));
+    expect(within(filters).getByRole('button', { name: 'Tutte', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    bookingRequests = requests(`/api/sessions/${SESSION.session_id}/bookings`, 'GET');
+    expect(bookingRequests).toHaveLength(2);
+    expect(new URL(bookingRequests[1][0], window.location.origin).searchParams.has('scope')).toBe(false);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages`)).toHaveLength(0);
+    expect(sessionStorage.getItem('salus-session')).toBe(SESSION.session_id);
+  });
+
+  it('conserva l’intento /prenotazioni durante l’accesso e recupera solo le visite future dopo il login', async () => {
+    const user = await mount();
+    await user.type(screen.getByRole('textbox', { name: 'Scrivi a Salus' }), '/prenotazioni{Enter}');
+    const login = screen.getByRole('dialog', { name: 'Accesso paziente' });
+    expect(requests(`/api/sessions/${SESSION.session_id}/bookings`, 'GET')).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(0);
+    await user.type(within(login).getByLabelText('Codice fiscale'), PATIENT.codice_fiscale);
+    await user.click(within(login).getByRole('button', { name: 'Accedi', exact: true }));
+    const bookings = await screen.findByRole('dialog', { name: 'Le mie prenotazioni' });
+    expect(await within(bookings).findByText('Nessuna visita in programma.')).toBeVisible();
+    expect(within(bookings).getByRole('button', { name: 'In programma' })).toHaveAttribute('aria-pressed', 'true');
+    const bookingRequests = requests(`/api/sessions/${SESSION.session_id}/bookings`, 'GET');
+    expect(bookingRequests).toHaveLength(1);
+    expect(new URL(bookingRequests[0][0], window.location.origin).searchParams.get('scope')).toBe('future');
+    expect(requests(`/api/sessions/${SESSION.session_id}/messages/stream`)).toHaveLength(0);
+    expect(requests(`/api/sessions/${SESSION.session_id}/confirm/stream`)).toHaveLength(0);
+    expect(requests('/api/sessions')).toHaveLength(1);
+    expect(sessionStorage.getItem('salus-session')).toBe(SESSION.session_id);
   });
 });

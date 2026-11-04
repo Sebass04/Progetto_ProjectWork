@@ -7,7 +7,7 @@ import {
   LoaderCircle, LogOut, Menu, MessageCircle, Plus, RefreshCw,
   ShieldCheck, Stethoscope, Wallet, X,
 } from 'lucide-react';
-import { apiRequest } from './api.js';
+import { apiRequest, apiStreamRequest } from './api.js';
 import { BookingCard, ReceiptCard } from './BookingWidgets.jsx';
 import MyBookings from './MyBookings.jsx';
 import { CopyButton, ProfileInfo } from './ChatInteractions.jsx';
@@ -116,10 +116,12 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [nextAction, setNextAction] = useState(null);
   const [bookingsOpen, setBookingsOpen] = useState(false);
+  const [bookingsView, setBookingsView] = useState('all');
   const [endAction, setEndAction] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [showScroll, setShowScroll] = useState(false);
+  const [progress, setProgress] = useState('');
   const busyRef = useRef(false);
   const scroller = useRef(null);
   const textarea = useRef(null);
@@ -189,12 +191,13 @@ export default function App() {
     window.addEventListener('resize', resizeComposer);
     return () => { observer?.disconnect(); window.removeEventListener('resize', resizeComposer); };
   }, [resizeComposer]);
-  useLayoutEffect(() => { if (shouldFollow.current && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [messages, pending, receipts, busy]);
+  useLayoutEffect(() => { if (shouldFollow.current && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [messages, pending, receipts, busy, progress]);
 
   function askLogin(action = null) { setNextAction(action); setLoginError(''); setLoginOpen(true); setMenuOpen(false); }
-  function showBookings() {
+  function showBookings(view = 'all') {
     setMenuOpen(false);
-    if (!session) { askLogin({ type: 'bookings' }); return; }
+    setBookingsView(view);
+    if (!session) { askLogin({ type: 'bookings', view }); return; }
     setBookingsOpen(true);
   }
 
@@ -225,22 +228,29 @@ export default function App() {
   async function sendMessage(text, activeSession = session) {
     text = text.trim();
     if (!text || busyRef.current || pending) return;
+    if (text === '/prenotazioni') {
+      setInput('');
+      setBookingsView('future');
+      if (!activeSession) askLogin({ type: 'bookings', view: 'future' });
+      else setBookingsOpen(true);
+      return;
+    }
     if (!activeSession) { askLogin({ type: 'message', text }); return; }
     if (text === '/esci' || text === '/fine') { setEndAction('logout'); return; }
-    busyRef.current = true; setBusy(true); setError(''); setInput(''); shouldFollow.current = true;
+    busyRef.current = true; setBusy(true); setProgress(''); setError(''); setInput(''); shouldFollow.current = true;
     setMessages((previous) => [...previous, { id: uid(), role: 'user', content: text }]);
-    try { consumeResult(await apiRequest(`/api/sessions/${activeSession.session_id}/messages`, { method: 'POST', body: JSON.stringify({ message: text }) })); }
+    try { consumeResult(await apiStreamRequest(`/api/sessions/${activeSession.session_id}/messages/stream`, { method: 'POST', body: JSON.stringify({ message: text }) }, setProgress)); }
     catch (e) { setError(e.message); await recoverState(activeSession.session_id); }
-    finally { busyRef.current = false; setBusy(false); textarea.current?.focus(); }
+    finally { busyRef.current = false; setBusy(false); setProgress(''); textarea.current?.focus(); }
   }
 
   async function confirmBooking(answer) {
     if (busyRef.current || !pending || !session) return;
-    busyRef.current = true; setBusy(true); setError(''); shouldFollow.current = true;
+    busyRef.current = true; setBusy(true); setProgress(''); setError(''); shouldFollow.current = true;
     setMessages((previous) => [...previous, { id: uid(), role: 'user', content: answer }]);
-    try { consumeResult(await apiRequest(`/api/sessions/${session.session_id}/confirm`, { method: 'POST', body: JSON.stringify({ answer }) })); }
+    try { consumeResult(await apiStreamRequest(`/api/sessions/${session.session_id}/confirm/stream`, { method: 'POST', body: JSON.stringify({ answer }) }, setProgress)); }
     catch (e) { setError(e.message); await recoverState(session.session_id); }
-    finally { busyRef.current = false; setBusy(false); }
+    finally { busyRef.current = false; setBusy(false); setProgress(''); }
   }
 
   async function signIn(code) {
@@ -252,7 +262,7 @@ export default function App() {
       setMessages([]); setReceipts([]); setReceiptAnchors({}); setPending(null); setError(''); setLoginOpen(false);
       const action = nextAction; setNextAction(null);
       if (action?.type === 'message') await sendMessage(action.text, data);
-      else if (action?.type === 'bookings') setBookingsOpen(true);
+      else if (action?.type === 'bookings') { setBookingsView(action.view || 'all'); setBookingsOpen(true); }
       else textarea.current?.focus();
     } catch (e) { setLoginError(e.message); }
     finally { setLoginBusy(false); }
@@ -300,7 +310,7 @@ export default function App() {
         <nav className="main-nav" aria-label="Il tuo spazio">
           <button className="nav-item nav-active" aria-current="page" onClick={() => setMenuOpen(false)}><MessageCircle size={19} /><span>Il tuo assistente</span><span className="nav-active-dot" /></button>
           <button className="nav-item" onClick={() => { setMenuOpen(false); if (session) setEndAction('new'); else { setInput(''); textarea.current?.focus(); } }} disabled={locked}><Plus size={19} /><span>Nuova conversazione</span></button>
-          <button className="nav-item" onClick={showBookings} disabled={booting}><CalendarDays size={19} /><span>Le mie prenotazioni</span></button>
+          <button className="nav-item" onClick={() => showBookings()} disabled={booting}><CalendarDays size={19} /><span>Le mie prenotazioni</span></button>
           <a className="nav-item" href="/api/services-document" target="_blank" rel="noopener noreferrer"><BookOpen size={19} /><span>Carta dei servizi</span><ArrowUp size={14} className="external-arrow" /></a>
         </nav>
         <div className="sidebar-middle">
@@ -327,7 +337,7 @@ export default function App() {
               <div className="message-log" role="log" aria-label="Messaggi della conversazione" aria-live="polite" aria-relevant="additions text">{messages.map((message) => <Fragment key={message.id}><Message message={message} onCopy={copyMessage} />{receipts.filter((receipt) => receiptAnchors[receipt.prenotazione_id] === message.id).map((receipt) => <div className="inline-receipt" key={receipt.prenotazione_id}><ReceiptCard receipt={receipt} sessionId={session?.session_id} /></div>)}</Fragment>)}</div>
             </div>}
             {(pending || receipts.some((receipt) => !receiptAnchors[receipt.prenotazione_id])) && <div className="booking-results" aria-live="polite">{receipts.filter((receipt) => !receiptAnchors[receipt.prenotazione_id]).map((receipt) => <ReceiptCard key={receipt.prenotazione_id} receipt={receipt} sessionId={session?.session_id} />)}{pending && <BookingCard pending={pending} busy={busy} onConfirm={confirmBooking} />}</div>}
-            {busy && <div className="thinking" role="status"><Mark small /><span><i /><i /><i /></span><span>{pending ? 'Completo la tua richiesta…' : 'Un momento, sto verificando…'}</span></div>}
+            {busy && <div className="thinking" role="status"><Mark small /><span><i /><i /><i /></span><span>{progress || (pending ? 'Completo la tua richiesta…' : 'Un momento, sto verificando…')}</span></div>}
           </>}
         </div>
         <div className="composer-area">
@@ -346,7 +356,7 @@ export default function App() {
 
     <Modal open={loginOpen} onClose={() => { setLoginOpen(false); setNextAction(null); }} label="Accesso paziente" closeDisabled={loginBusy}><LoginForm key={loginOpen ? 'open' : 'closed'} busy={loginBusy} error={loginError} onSubmit={signIn} /></Modal>
     <Modal open={bookingsOpen && !!session} onClose={() => setBookingsOpen(false)} label="Le mie prenotazioni" wide>
-      {bookingsOpen && session && <MyBookings sessionId={session.session_id} onClose={() => setBookingsOpen(false)} onAsk={(text) => { setBookingsOpen(false); if (pending) { setError('Conferma o rifiuta prima la visita in sospeso.'); return; } sendMessage(text); }} />}
+      {bookingsOpen && session && <MyBookings sessionId={session.session_id} initialView={bookingsView} onClose={() => setBookingsOpen(false)} onAsk={(text) => { setBookingsOpen(false); if (pending) { setError('Conferma o rifiuta prima la visita in sospeso.'); return; } sendMessage(text); }} />}
     </Modal>
     <Modal open={!!endAction} onClose={() => setEndAction(null)} label={endAction === 'new' ? 'Nuova conversazione' : 'Termina conversazione'} closeDisabled={busy}>
       <div className="end-session">

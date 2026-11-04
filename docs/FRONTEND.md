@@ -55,7 +55,11 @@ Esempi:
 
 La prenotazione parte dalla chat o dal suggerimento “Prenota una visita”. L’agente cerca gli orari disponibili e raccoglie la scelta del paziente. Il riepilogo nasce dall’interruzione `interrupt` del backend: **nessuna visita viene registrata prima di “Conferma prenotazione”**. “Non confermare” riprende lo stesso grafo con un rifiuto.
 
+Durante l’elaborazione della domanda o la conferma, sotto la conversazione compaiono gli aggiornamenti inviati dall’agente, ad esempio quando consulta la Carta dei Servizi. La risposta completa compare al termine. La ricevuta mostra il numero della prenotazione confermata.
+
 Il menu a scomparsa si apre con l’hamburger su qualsiasi schermo. Contiene “Le mie prenotazioni”, la Carta dei Servizi, nuova conversazione, preferenze e uscita. Lo storico legge SQLite e mostra solo le visite del paziente attivo, incluse quelle di conversazioni precedenti; il download JSON resta disponibile per le ricevute autorizzate nella sessione corrente. Le domande suggerite compaiono nella chat solo quando è vuota. Lo stato Online/Offline riflette la disponibilità dell’agente, e il campo messaggio parte da una riga e cresce con il testo.
+
+In “Le mie prenotazioni” puoi alternare lo storico completo e le visite confermate in programma. Scrivi `/prenotazioni` nella chat per aprire direttamente le visite in programma, ordinate dalla più vicina.
 
 Toccando l’avatar in alto oppure avatar e nome nel menu si apre il codice fiscale del paziente; la nuvoletta si chiude con un altro clic, un clic esterno o Escape. “Copia” conferma l’operazione con un check animato solo dopo la copia effettiva negli appunti. Accesso, nuova chat e uscita usano gli stessi modali compatti.
 
@@ -77,7 +81,8 @@ Gli slot dimostrativi sono fissi nel **novembre 2026**, non vengono generati aut
 | Registrazione e ricevuta JSON | Scheda confermata e download della ricevuta |
 | Preferenze medico e fascia dall’ultima prenotazione | Preferenze nel menu e indicazioni nelle risposte dell’agente |
 | Nuovo accesso/conversazione, `/esci`, `/fine` | Nuova conversazione, uscita e comandi intercettati nel composer |
-| Storico in SQLite | “Le mie prenotazioni” nel menu, limitato al paziente della sessione |
+| Storico in SQLite e comando `/prenotazioni` | “Le mie prenotazioni” nel menu, con filtro per le visite in programma e accesso diretto dalla chat |
+| Eventi di avanzamento dell’agente | Aggiornamenti di stato durante la chat e la conferma |
 
 In aggiunta, la pagina recupera la conversazione dopo un refresh, mentre il processo API resta aperto. In `sessionStorage` conserva solo l’ID casuale della sessione; messaggi e codice fiscale non vengono scritti nel browser storage. Una richiesta ancora in corso viene recuperata con soli GET, senza ripetere automaticamente un invio o una conferma.
 

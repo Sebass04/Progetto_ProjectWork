@@ -2,6 +2,8 @@
 
 import json
 import sqlite3
+import asyncio
+import threading
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from api import ROOT, create_app
+from api import ROOT, MessageBody, create_app
 
 
 class FakeStore:
@@ -127,8 +129,10 @@ def test_invalid_login_and_dates_have_italian_errors(env):
 def test_slots_exclude_occupied_and_past(env):
     result = env.client.get("/api/slots", params={"specialita": "Cardiologia", "data": "2099-11-03"}).json()
     assert 1 not in [s["slot_id"] for s in result["slots"]]
-    result = env.client.get("/api/slots", params={"specialita": "Cardiologia", "data": "2001-11-03"}).json()
-    assert result["slots"] == []
+    response = env.client.get("/api/slots", params={"specialita": "Cardiologia", "data": "2001-11-03"})
+    assert response.status_code == 422
+    assert "già passata" in response.json()["detail"]
+    assert datetime.now().strftime("%d-%m-%Y") in response.json()["detail"]
 
 
 def test_booking_requires_confirmation_and_download_is_session_scoped(env):
@@ -402,3 +406,173 @@ def test_session_deleted_between_lookup_and_lock_cannot_be_used(env, operation):
     assert session.lock.released
     assert env.loads == []
     assert session_id not in env.app.state.sessions
+
+
+def streaming_events(response):
+    assert response.status_code == 200
+    assert response.headers['content-type'].startswith('application/x-ndjson')
+    assert response.headers['cache-control'] == 'no-store'
+    return [json.loads(line) for line in response.text.splitlines() if line.strip()]
+
+
+def enable_custom_stream(env):
+    states = {}
+    calls = []
+
+    def stream(payload, config, *, stream_mode, subgraphs):
+        calls.append((stream_mode, subgraphs))
+        yield (), 'custom', {'avanzamento': 'Sto capendo la richiesta...'}
+        # Events from a nested agent have a namespace and must also reach the UI.
+        yield ('agente_info:1',), 'custom', {'avanzamento': 'Sto cercando nella Carta dei Servizi...'}
+        yield (), 'custom', {'avanzamento': 42}
+        result = env.graph.invoke(payload, config)
+        states[config['configurable']['thread_id']] = SimpleNamespace(
+            values={'messages': result['messages']},
+            interrupts=tuple(result.get('__interrupt__', ())),
+        )
+
+    env.graph.stream = stream
+    env.graph.get_state = lambda config: states[config['configurable']['thread_id']]
+    return calls
+
+
+def test_custom_stream_delivers_progress_then_final_answer_and_snapshot(env):
+    calls = enable_custom_stream(env)
+    session = login(env)
+    base = f'/api/sessions/{session}'
+    events = streaming_events(env.client.post(base + '/messages/stream', json={'message': 'Quali documenti porto?'}))
+    assert [event['type'] for event in events] == ['progress', 'progress', 'result']
+    assert events[0]['message'] == 'Sto capendo la richiesta...'
+    assert events[1]['message'] == 'Sto cercando nella Carta dei Servizi...'
+    result = events[-1]['data']
+    assert result['messages'][-1]['content'] == 'Informazione dal documento.'
+    assert result['pending'] is None
+    assert env.client.get(base).json()['messages'][-1] == result['messages'][-1]
+    assert calls == [(['custom'], True)]
+
+
+def test_custom_stream_recovers_interrupt_from_snapshot_and_commits_after_confirmation(env):
+    enable_custom_stream(env)
+    session = login(env)
+    base = f'/api/sessions/{session}'
+    pending = streaming_events(env.client.post(base + '/messages/stream', json={'message': 'prenota'}))[-1]['data']
+    assert pending['pending']['id'] == 'confirm-1'
+    assert pending['receipt'] is None
+    with sqlite3.connect(env.database) as conn:
+        assert conn.execute('SELECT count(*) FROM prenotazioni').fetchone()[0] == 1
+    events = streaming_events(env.client.post(base + '/confirm/stream', json={'answer': 'si'}))
+    result = events[-1]['data']
+    assert result['pending'] is None
+    assert result['receipt']['prenotazione_id'] == 2
+    assert env.client.get(base + '/receipt/2').status_code == 200
+    assert result['preferences']['medico'] == 'Laura Bianchi'
+
+
+def test_custom_stream_error_is_sanitized_and_preserves_pending_and_unlocks(env):
+    enable_custom_stream(env)
+    session = login(env)
+    base = f'/api/sessions/{session}'
+    streaming_events(env.client.post(base + '/messages/stream', json={'message': 'prenota'}))
+    env.graph.fail_next = True
+    events = streaming_events(env.client.post(base + '/confirm/stream', json={'answer': 'si'}))
+    assert [e['type'] for e in events] == ['progress', 'progress', 'error']
+    assert events[-1]['status'] == 503
+    assert 'Ollama unavailable' not in events[-1]['detail']
+    restored = env.client.get(base)
+    assert restored.status_code == 200
+    assert restored.json()['pending']['id'] == 'confirm-1'
+    result = streaming_events(env.client.post(base + '/confirm/stream', json={'answer': 'no'}))[-1]['data']
+    assert result['pending'] is None
+    assert result['receipt'] is None
+
+
+def test_stream_auth_validation_conflicts_and_json_fallback(env):
+    assert env.client.post('/api/sessions/unknown/messages/stream', json={'message': 'ciao'}).status_code == 404
+    session = login(env)
+    base = f'/api/sessions/{session}'
+    assert env.client.post(base + '/messages/stream', json={'message': ' '}).status_code == 422
+    assert env.client.post(base + '/confirm/stream', json={'answer': ''}).status_code == 422
+    lock = env.app.state.sessions[session].lock
+    lock.acquire()
+    try:
+        events = streaming_events(env.client.post(base + '/messages/stream', json={'message': 'ciao'}))
+        assert events == [{'type': 'error', 'detail': "L'assistente sta già elaborando una richiesta. Attendi la risposta.", 'status': 409}]
+    finally:
+        lock.release()
+    # Alternate runtimes without custom stream support retain the JSON behavior.
+    events = streaming_events(env.client.post(base + '/messages/stream', json={'message': 'ciao'}))
+    assert [e['type'] for e in events] == ['result']
+    assert events[0]['data']['messages'][-1]['content'] == 'Informazione dal documento.'
+
+
+def test_stream_recovers_receipt_if_model_fails_after_commit(env):
+    enable_custom_stream(env)
+    session = login(env)
+    base = f'/api/sessions/{session}'
+    streaming_events(env.client.post(base + '/messages/stream', json={'message': 'prenota'}))
+    env.graph.fail_after_commit = True
+    events = streaming_events(env.client.post(base + '/confirm/stream', json={'answer': 'si'}))
+    assert events[-1]['type'] == 'result'
+    assert events[-1]['data']['receipt']['prenotazione_id'] == 2
+    assert events[-1]['data']['pending'] is None
+    assert env.client.post(base + '/confirm', json={'answer': 'si'}).status_code == 409
+
+
+def test_future_bookings_match_cli_scope_are_patient_isolated_and_chronological(env):
+    session = login(env)
+    with sqlite3.connect(env.database) as conn:
+        conn.execute("UPDATE slot SET data_ora = '2001-11-03 09:00' WHERE id = 1")
+        conn.execute("INSERT INTO prenotazioni (paziente_id,slot_id,tipo_visita,importo) VALUES (1,10,'Prima visita',120)")
+        conn.execute("INSERT INTO prenotazioni (paziente_id,slot_id,tipo_visita,importo) VALUES (1,5,'Prima visita',120)")
+        conn.execute("INSERT INTO prenotazioni (paziente_id,slot_id,tipo_visita,importo,stato) VALUES (1,7,'Prima visita',100,'annullata')")
+        conn.execute("INSERT INTO prenotazioni (paziente_id,slot_id,tipo_visita,importo) VALUES (2,11,'Prima visita',100)")
+    base = f'/api/sessions/{session}/bookings'
+    result = env.client.get(base, params={'scope': 'future'})
+    assert result.status_code == 200
+    bookings = result.json()['bookings']
+    assert [b['prenotazione_id'] for b in bookings] == [3, 2]
+    assert all(b['stato'] == 'confermata' for b in bookings)
+    assert [b['data_visita'] for b in bookings] == sorted(b['data_visita'] for b in bookings)
+    assert len(env.client.get(base).json()['bookings']) == 4
+    assert env.client.get(base, params={'scope': 'arbitrary'}).status_code == 422
+    assert env.loads == []
+
+
+def test_progress_arrives_before_completion_and_disconnecting_does_not_cancel_graph(env):
+    session_id = login(env)
+    session = env.app.state.sessions[session_id]
+    continue_graph = threading.Event()
+    states = {}
+
+    def stream(payload, config, **_kwargs):
+        yield (), 'custom', {'avanzamento': 'Sto cercando gli orari...'}
+        assert continue_graph.wait(4)
+        result = env.graph.invoke(payload, config)
+        states[config['configurable']['thread_id']] = SimpleNamespace(
+            values={'messages': result['messages']}, interrupts=tuple(result.get('__interrupt__', ())))
+
+    env.graph.stream = stream
+    env.graph.get_state = lambda config: states[config['configurable']['thread_id']]
+    endpoint = next(route.endpoint for route in env.app.routes
+                    if getattr(route, 'path', None) == '/api/sessions/{session_id}/messages/stream')
+    response = endpoint(session_id, MessageBody(message='prenota'))
+
+    async def receive_one_then_disconnect():
+        first = await asyncio.wait_for(anext(response.body_iterator), timeout=2)
+        assert json.loads(first) == {'type': 'progress', 'message': 'Sto cercando gli orari...'}
+        assert session.lock.locked()
+        assert session.pending is None
+        # Closing the HTTP consumer must not cancel the worker, since an
+        # already submitted confirmation could have committed to SQLite.
+        await response.body_iterator.aclose()
+
+    try:
+        asyncio.run(receive_one_then_disconnect())
+    finally:
+        continue_graph.set()
+    assert session.lock.acquire(timeout=2)
+    try:
+        assert session.pending['id'] == 'confirm-1'
+    finally:
+        session.lock.release()
+    assert env.client.get(f'/api/sessions/{session_id}').status_code == 200

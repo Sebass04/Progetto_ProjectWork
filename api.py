@@ -17,14 +17,15 @@ from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Callable
+from queue import Empty, Queue
+from typing import Any, Callable, Literal
 from urllib.error import URLError
 from urllib.request import urlopen
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -228,7 +229,8 @@ def create_app(database_path: Path | str | None = None,
                 "receipt": receipt, "receipt_anchor": receipt_anchor,
                 "preferences": preferences(session)}
 
-    def invoke(session_id: str, message: str | None = None, answer: str | None = None):
+    def invoke(session_id: str, message: str | None = None, answer: str | None = None,
+               on_progress: Callable[[str], None] | None = None):
         session = get_session(session_id)
         if not session.lock.acquire(blocking=False):
             raise HTTPException(409, "L'assistente sta già elaborando una richiesta. Attendi la risposta.")
@@ -254,7 +256,25 @@ def create_app(database_path: Path | str | None = None,
                 session.messages.append({"id": str(uuid4()), "role": "user",
                                          "content": message if answer is None else answer})
                 try:
-                    result = current_runtime.grafo.invoke(payload, session.config)
+                    graph = current_runtime.grafo
+                    if on_progress is not None and hasattr(graph, "stream") and hasattr(graph, "get_state"):
+                        # Match the CLI's custom stream, including messages from
+                        # nested agents. The final checkpoint owns interrupts;
+                        # they are not stored in StateSnapshot.values.
+                        for event in graph.stream(payload, session.config,
+                                                  stream_mode=["custom"], subgraphs=True):
+                            if not isinstance(event, tuple) or len(event) != 3:
+                                continue
+                            _namespace, mode, data = event
+                            if mode == "custom" and isinstance(data, dict):
+                                progress = data.get("avanzamento")
+                                if isinstance(progress, str) and progress.strip():
+                                    on_progress(progress)
+                        checkpoint = graph.get_state(session.config)
+                        result = {"messages": checkpoint.values.get("messages", []),
+                                  "__interrupt__": checkpoint.interrupts}
+                    else:
+                        result = graph.invoke(payload, session.config)
                 except Exception as error:
                     receipt = collect_receipts(session, before, positive_confirmation)
                     # The booking transaction may have succeeded even when the model
@@ -275,6 +295,45 @@ def create_app(database_path: Path | str | None = None,
                 return format_result(result, session, collect_receipts(session, before, positive_confirmation))
         finally:
             session.lock.release()
+
+    def stream_invocation(session_id: str, message: str | None = None, answer: str | None = None):
+        # Reject an unknown session before sending HTTP 200 stream headers.
+        get_session(session_id)
+        events: Queue = Queue()
+
+        def produce():
+            try:
+                result = invoke(session_id, message=message, answer=answer,
+                                on_progress=lambda text: events.put({"type": "progress", "message": text}))
+                events.put({"type": "result", "data": result})
+            except HTTPException as error:
+                detail = error.detail if isinstance(error.detail, str) else "Non è stato possibile completare la richiesta."
+                events.put({"type": "error", "detail": detail, "status": error.status_code})
+            except Exception:
+                events.put({"type": "error", "detail": "L'assistente non ha completato la richiesta. Riprova tra poco.",
+                            "status": 503})
+            finally:
+                events.put(None)
+
+        def consume():
+            while True:
+                try:
+                    event = events.get(timeout=1)
+                except Empty:
+                    # A blank NDJSON line is a transport heartbeat, not an AI
+                    # progress claim. Clients ignore it while Ollama is busy.
+                    yield "\n"
+                    continue
+                if event is None:
+                    return
+                yield json.dumps(event, ensure_ascii=False) + "\n"
+
+        # Keep the graph running if a tab refreshes or disconnects after the
+        # confirmation POST. Its receipt/checkpoint can then be recovered with
+        # a GET, rather than retrying a potentially committed booking.
+        threading.Thread(target=produce, daemon=True, name="salus-graph-stream").start()
+        return StreamingResponse(consume(), media_type="application/x-ndjson",
+                                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
     @application.middleware("http")
     async def privacy_headers(request: Request, call_next):
@@ -330,13 +389,20 @@ def create_app(database_path: Path | str | None = None,
             session.lock.release()
 
     @application.get("/api/sessions/{session_id}/bookings")
-    def patient_bookings(session_id: str):
+    def patient_bookings(session_id: str, scope: Literal["all", "future"] = "all"):
         session = get_session(session_id)
         if not session.lock.acquire(blocking=False):
             raise HTTPException(409, "La richiesta è ancora in corso. Attendi qualche istante.")
         try:
             if sessions.get(session_id) is not session:
                 raise HTTPException(404, "Sessione non trovata o terminata. Accedi nuovamente.")
+            params: tuple = (session.patient["id"],)
+            where = ""
+            order = "DESC"
+            if scope == "future":
+                where = " AND p.stato = 'confermata' AND slot.data_ora > ?"
+                params += (datetime.now().strftime("%Y-%m-%d %H:%M"),)
+                order = "ASC"
             with connect() as connection:
                 rows = connection.execute("""
                     SELECT p.id AS prenotazione_id, p.slot_id, specialita.nome AS specialita,
@@ -346,8 +412,7 @@ def create_app(database_path: Path | str | None = None,
                     JOIN medici ON medici.id = slot.medico_id
                     JOIN specialita ON specialita.id = medici.specialita_id
                     WHERE p.paziente_id = ?
-                    ORDER BY slot.data_ora DESC, p.id DESC
-                """, (session.patient["id"],)).fetchall()
+                """ + where + f" ORDER BY slot.data_ora {order}, p.id {order}", params).fetchall()
             # Historical appointments are visible across sessions. Download rights
             # stay limited to receipts already issued to this particular session.
             bookings = [{**dict(row), "receipt_available": row["prenotazione_id"] in session.receipts}
@@ -359,9 +424,13 @@ def create_app(database_path: Path | str | None = None,
     @application.get("/api/slots")
     def slots(specialita: str = Query(min_length=1, max_length=100), data: str = Query(min_length=10, max_length=10)):
         try:
-            date.fromisoformat(data)
+            requested_date = date.fromisoformat(data)
         except ValueError:
             raise HTTPException(422, "La data deve essere valida e nel formato AAAA-MM-GG.")
+        today = date.today()
+        if requested_date < today:
+            raise HTTPException(422, f"La data {requested_date.strftime('%d-%m-%Y')} è già passata. "
+                                    f"Oggi è {today.strftime('%d-%m-%Y')}: scegli una data da oggi in poi.")
         with connect() as connection:
             exists = connection.execute("SELECT id FROM specialita WHERE lower(nome) = lower(?)", (specialita.strip(),)).fetchone()
             if exists is None:
@@ -389,6 +458,20 @@ def create_app(database_path: Path | str | None = None,
         if not answer:
             raise HTTPException(422, "Scegli se confermare o rifiutare la prenotazione.")
         return invoke(session_id, answer=answer)
+
+    @application.post("/api/sessions/{session_id}/messages/stream")
+    def stream_message(session_id: str, body: MessageBody):
+        text = body.message.strip()
+        if not text:
+            raise HTTPException(422, "Scrivi un messaggio prima di inviare.")
+        return stream_invocation(session_id, message=text)
+
+    @application.post("/api/sessions/{session_id}/confirm/stream")
+    def stream_confirm(session_id: str, body: ConfirmBody):
+        answer = body.answer.strip()
+        if not answer:
+            raise HTTPException(422, "Scegli se confermare o rifiutare la prenotazione.")
+        return stream_invocation(session_id, answer=answer)
 
     @application.get("/api/sessions/{session_id}/receipt/{booking_id}")
     def download_receipt(session_id: str, booking_id: int):

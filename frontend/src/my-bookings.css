@@ -6,6 +6,9 @@
 .mb-close:hover { background: #eaf0e6; color: var(--ink, #173c34); }
 .mb-close:focus-visible, .mb-action:focus-visible, .mb-download:focus-visible { outline: 2px solid var(--accent, #2c6555); outline-offset: 3px; }
 .mb-count { margin: 0 0 12px; color: var(--muted, #68766a); font-size: 12px; }
+.mb-filters { display: flex; gap: 4px; width: fit-content; padding: 4px; margin: 0 0 20px; background: #f0f4e9; border: 1px solid #e4eadb; border-radius: 12px; }
+.mb-filters button { border-radius: 8px; padding: 8px 14px; background: transparent; color: #92a080; font-size: 11px; }
+.mb-filters button[aria-pressed="true"] { background: #fffefa; color: #537640; box-shadow: 0 1px 4px #173c3409; }
 .mb-list { list-style: none; display: grid; gap: 12px; margin: 0; padding: 2px 3px 4px 1px; max-height: min(58dvh, 550px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #ced9c9 transparent; }
 .mb-booking { padding: 18px; border: 1px solid var(--line, #e3e7de); border-radius: 16px; background: var(--paper, #fffefa); }
 .mb-booking-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 17px; }
