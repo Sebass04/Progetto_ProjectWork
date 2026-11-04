@@ -221,3 +221,5 @@ __marimo__/
 chroma_db/
 medibook.db
 ricevute/
+frontend/node_modules/
+.web-preview/

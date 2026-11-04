@@ -1,5 +1,7 @@
 # MediBook – Poliambulatorio Salus Levante
 
+> **Interfaccia web:** per avviare il frontend React e l’API FastAPI leggere [docs/FRONTEND.md](docs/FRONTEND.md). Avvio rapido su Windows: `.\avvia-web.ps1`.
+
 Assistente conversazionale per il Poliambulatorio Salus Levante, realizzato con **LangGraph** per la
 **Traccia C – MediBook** del project work.
 Il paziente si identifica con il codice fiscale e può:
