@@ -7,7 +7,7 @@ from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 from langchain.agents import create_agent
 from langgraph.types import interrupt
-from langgraph.config import get_store
+from langgraph.config import get_store, get_stream_writer
 from config import get_llm
 from db import apri_connessione, crea_database, percorso_db
 from rag import cerca_preparazione
@@ -111,6 +111,29 @@ def cerca_slot_liberi_dati(specialita, data):
     return risultati
 
 
+def prenotazioni_future_dati(paziente_id):
+    adesso = datetime.now().strftime("%Y-%m-%d %H:%M")
+    connessione = apri_connessione()
+    righe = connessione.execute(
+        """SELECT prenotazioni.id AS prenotazione_id, prenotazioni.tipo_visita AS tipo_visita,
+                  medici.nome AS medico, specialita.nome AS specialita, slot.data_ora AS data_ora
+           FROM prenotazioni
+           JOIN slot ON slot.id = prenotazioni.slot_id
+           JOIN medici ON medici.id = slot.medico_id
+           JOIN specialita ON specialita.id = medici.specialita_id
+           WHERE prenotazioni.paziente_id = ?
+             AND prenotazioni.stato = 'confermata'
+             AND slot.data_ora > ?
+           ORDER BY slot.data_ora""",
+        (paziente_id, adesso),
+    ).fetchall()
+    connessione.close()
+    risultati = []
+    for riga in righe:
+        risultati.append(dict(riga))
+    return risultati
+
+
 def registra_prenotazione(paziente_id, slot_id, tipo_visita, importo):
     # slot occupato e prenotazione inserita nella stessa transazione: o tutte e due o nessuna
     connessione = apri_connessione()
@@ -177,6 +200,8 @@ def cerca_medici(specialita: str) -> str:
     errore = errore_specialita(specialita)
     if errore is not None:
         return errore
+    scrittore = get_stream_writer()
+    scrittore({"avanzamento": f"Sto cercando i medici di {specialita}..."})
     medici = cerca_medici_dati(specialita)
     righe = []
     for medico in medici:
@@ -197,9 +222,16 @@ def cerca_slot_liberi(specialita: str, data: str, config: RunnableConfig) -> str
             giorno = datetime.strptime(data.strip(), "%d-%m-%Y")
         except ValueError:
             return "Errore: la data deve essere nel formato GG-MM-AAAA, per esempio 03-11-2026."
+    # il modello non conosce la data di oggi: se cerca nel passato gliela diamo nel messaggio di errore
+    oggi = datetime.now()
+    if giorno.date() < oggi.date():
+        return (f"Errore: la data {giorno.strftime('%d-%m-%Y')} è già passata. "
+                f"Oggi è {giorni_settimana[oggi.weekday()]} {oggi.strftime('%d-%m-%Y')}: usa una data da oggi in poi.")
     errore = errore_specialita(specialita)
     if errore is not None:
         return errore
+    scrittore = get_stream_writer()
+    scrittore({"avanzamento": f"Sto cercando gli orari liberi di {specialita} per il {giorno.strftime('%d-%m-%Y')}..."})
     slot_liberi = cerca_slot_liberi_dati(specialita, giorno.strftime("%Y-%m-%d"))
     if len(slot_liberi) == 0:
         return f"Nessun orario libero per {specialita} il {giorno.strftime('%d-%m-%Y')}."
@@ -283,6 +315,10 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
                 "Non dire che la visita è prenotata e non richiamare prenota_visita: "
                 "chiedi al paziente se vuole scegliere un altro orario.")
 
+    # i messaggi di avanzamento stanno dopo l'interrupt: alla ripresa il tool riparte dall'inizio
+    # e un messaggio scritto prima verrebbe stampato due volte
+    scrittore = get_stream_writer()
+    scrittore({"avanzamento": "Sto registrando la prenotazione..."})
     prenotazione = registra_prenotazione(paziente["id"], slot_id, descrizione_visita, importo)
     if "errore" in prenotazione:
         return "Errore durante la registrazione: " + prenotazione["errore"]
@@ -301,11 +337,13 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
         "fonte_preparazione": preparazione["fonte"],
         "creata_il": prenotazione["creato_il"],
     }
+    scrittore({"avanzamento": "Sto salvando la ricevuta..."})
     percorso = salva_ricevuta(ricevuta)
     # le preferenze si aggiornano da sole, solo dopo una prenotazione confermata e registrata
     salva_preferenze(get_store(), codice_fiscale, slot)
 
-    return f"Prenotazione confermata. Ricevuta salvata in ricevute/{percorso.name}:\n" + json.dumps(ricevuta, indent=2, ensure_ascii=False)
+    return (f"Prenotazione confermata. Comunica al paziente il numero di prenotazione {prenotazione['id']}. "
+            f"Ricevuta salvata in ricevute/{percorso.name}:\n" + json.dumps(ricevuta, indent=2, ensure_ascii=False))
 
 
 prompt_booking = """Sei l'assistente prenotazioni del Poliambulatorio Salus Levante.

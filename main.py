@@ -4,11 +4,12 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, MessagesState, START, END
+from langgraph.config import get_stream_writer
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 from langgraph.types import Command
 from config import get_llm
-from booking import agente_booking, trova_paziente, leggi_preferenze
+from booking import agente_booking, trova_paziente, leggi_preferenze, prenotazioni_future_dati, mostra_data
 from rag import agente_info
 
 llm = get_llm()
@@ -87,6 +88,8 @@ def router(stato: Stato) -> dict:
             solo_testo = solo_testo[numero + 1:]
             break
 
+    scrittore = get_stream_writer()
+    scrittore({"avanzamento": "Sto capendo la richiesta..."})
     rotta = router_llm.invoke([SystemMessage(prompt_router)] + solo_testo[-4:])
     return {"intento": rotta.intento}
 
@@ -140,8 +143,28 @@ def mostra_riepilogo(riepilogo):
             print(f"   {chiave}: {riepilogo[chiave]}")
 
 
+def esegui(ingresso, config):
+    # streaming custom: router, agente Info e tool del Booking mandano messaggi di avanzamento mentre lavorano;
+    # subgraphs=True serve perché gli agenti sono sottografi e i loro messaggi altrimenti non arrivano qui
+    for spazio, modalita, dato in grafo.stream(ingresso, config, stream_mode=["custom"], subgraphs=True):
+        print("   ...", dato["avanzamento"])
+    return grafo.get_state(config)
+
+
+def mostra_prenotazioni(paziente):
+    # letto dal database e non chiesto all'LLM: così l'elenco è sempre vero
+    visite = prenotazioni_future_dati(paziente["id"])
+    if len(visite) == 0:
+        print("Non ha visite prenotate.")
+    else:
+        print("Le sue visite prenotate:")
+        for visita in visite:
+            print(f"   prenotazione {visita['prenotazione_id']}: {visita['specialita']} con {visita['medico']} "
+                  f"il {mostra_data(visita['data_ora'])} ({visita['tipo_visita']})")
+
+
 def conversazione(paziente, config):
-    print(f"Benvenuto {paziente['nome']}. Scrivi /esci per terminare la conversazione.")
+    print(f"Benvenuto {paziente['nome']}. Scrivi /prenotazioni per vedere le sue visite, /esci per terminare la conversazione.")
     preferenze = leggi_preferenze(memoria_preferenze, paziente["codice_fiscale"])
     if preferenze is not None:
         print(f"Dalle visite precedenti: medico preferito {preferenze['medico']}, fascia preferita {preferenze['fascia']}.")
@@ -151,12 +174,15 @@ def conversazione(paziente, config):
         if testo == "/esci":
             print("Arrivederci!")
             return
+        if testo == "/prenotazioni":
+            mostra_prenotazioni(paziente)
+            continue
 
-        risultato = grafo.invoke({"messages": [("user", testo)]}, config)
+        stato = esegui({"messages": [("user", testo)]}, config)
 
-        while "__interrupt__" in risultato:
+        while len(stato.interrupts) > 0:
             risposte = {}
-            for richiesta in risultato["__interrupt__"]:
+            for richiesta in stato.interrupts:
                 print("Riepilogo della prenotazione:")
                 mostra_riepilogo(richiesta.value)
                 risposta = input(richiesta.value["domanda"] + " ")
@@ -164,9 +190,9 @@ def conversazione(paziente, config):
                     print("Arrivederci!")
                     return
                 risposte[richiesta.id] = risposta
-            risultato = grafo.invoke(Command(resume=risposte), config)
+            stato = esegui(Command(resume=risposte), config)
 
-        print("Assistente:", risultato["messages"][-1].content)
+        print("Assistente:", stato.values["messages"][-1].content)
 
 
 def chat():

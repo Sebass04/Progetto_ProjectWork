@@ -27,10 +27,22 @@ FRONTEND WEB: istruzioni complete in README.md. Avvio rapido: .\avvia-web.ps1
     - python main.py (chiede il codice fiscale del paziente)
     - /esci chiude la conversazione e si torna al codice fiscale: ogni accesso è una conversazione nuova
     - /fine al posto del codice fiscale chiude il programma
+    - /prenotazioni mostra le visite future confermate del paziente con il numero di prenotazione,
+      lette direttamente dal database (non passa dall'LLM); dopo una prenotazione anche l'assistente di solito
+      comunica il numero, ma non sempre (dipende dal modello): il riferimento sicuro è /prenotazioni
+    - il numero di prenotazione non compare nel riepilogo della conferma perché lo crea il database
+      solo dopo il "si", al momento dell'INSERT
     - preferenze del paziente (Store): dopo ogni prenotazione confermata vengono salvati il medico e la fascia
       oraria (mattina o pomeriggio) di quella prenotazione, al posto dei precedenti; al nuovo accesso dello
       stesso paziente vengono mostrati e negli orari liberi sono segnati "medico preferito" e "fascia preferita"
     - le preferenze sono in memoria (InMemoryStore): chiudendo il programma si perdono
+    - streaming custom: mentre lavora, l'assistente stampa righe di avanzamento che iniziano con "..."
+      (per esempio "... Sto cercando gli orari liberi di Cardiologia per il 05-11-2026...");
+      le mandano il router, l'agente Info e i tool dell'agente Booking; il testo della risposta arriva tutto insieme
+    - date: se l'assistente cerca orari in una data già passata, il tool risponde con un errore che contiene
+      la data di oggi, così il modello conosce la data giusta; le date relative come "la prossima settimana" o
+      "lunedì prossimo" restano poco affidabili con qwen2.5: indicare la data come GG-MM-AAAA
+      oppure "oggi", "domani", "dopodomani"
 
 MODELLI DA USARE:
 - MODELLO-CHAT: qwen2.5:latest
