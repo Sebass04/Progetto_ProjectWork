@@ -37,6 +37,10 @@ PREPARAZIONE DELL'AMBIENTE VIRTUALE E DEI MODELLI DA USARE
     - streaming custom: mentre lavora, l'assistente stampa righe di avanzamento che iniziano con "..."
       (per esempio "... Sto cercando gli orari liberi di Cardiologia per il 05-11-2026...");
       le mandano il router, l'agente Info e i tool dell'agente Booking; il testo della risposta arriva tutto insieme
+    - date: se l'assistente cerca orari in una data già passata, il tool risponde con un errore che contiene
+      la data di oggi, così il modello conosce la data giusta; le date relative come "la prossima settimana" o
+      "lunedì prossimo" restano poco affidabili con qwen2.5: indicare la data come GG-MM-AAAA
+      oppure "oggi", "domani", "dopodomani"
 
 MODELLI DA USARE:
 - MODELLO-CHAT: qwen2.5:latest

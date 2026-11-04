@@ -222,6 +222,11 @@ def cerca_slot_liberi(specialita: str, data: str, config: RunnableConfig) -> str
             giorno = datetime.strptime(data.strip(), "%d-%m-%Y")
         except ValueError:
             return "Errore: la data deve essere nel formato GG-MM-AAAA, per esempio 03-11-2026."
+    # il modello non conosce la data di oggi: se cerca nel passato gliela diamo nel messaggio di errore
+    oggi = datetime.now()
+    if giorno.date() < oggi.date():
+        return (f"Errore: la data {giorno.strftime('%d-%m-%Y')} è già passata. "
+                f"Oggi è {giorni_settimana[oggi.weekday()]} {oggi.strftime('%d-%m-%Y')}: usa una data da oggi in poi.")
     errore = errore_specialita(specialita)
     if errore is not None:
         return errore
