@@ -1,0 +1,26 @@
+TRACCIA PRESENTATA
+C - MediBook (Poliambulatorio Salus Levante)
+
+TRACCE AGGIUNTIVE
+Nessuna
+
+PUNTI FACOLTATIVI SVOLTI
+
+1. Store: preferenze del paziente (medico, fascia oraria)
+   - dopo ogni prenotazione confermata vengono salvati in automatico il medico e la fascia oraria
+     (mattina o pomeriggio) nello store, con namespace ("pazienti", codice fiscale)
+   - al nuovo accesso dello stesso paziente le preferenze vengono mostrate e negli orari liberi
+     compaiono le note "medico preferito" e "fascia preferita"
+   - store InMemoryStore passato a compile() in main.py; funzioni salva_preferenze e leggi_preferenze
+     in booking.py; ogni accesso è una conversazione nuova (thread diverso, stesso paziente)
+
+2. Streaming custom ("sto cercando...")
+   - il router (main.py), il nodo recupera dell'agente Info (rag.py) e i tool cerca_medici,
+     cerca_slot_liberi e prenota_visita (booking.py) mandano messaggi di avanzamento con get_stream_writer()
+   - main.py li stampa con grafo.stream(..., stream_mode=["custom"], subgraphs=True)
+   - in prenota_visita i messaggi stanno dopo l'interrupt, così non vengono ripetuti alla ripresa
+
+PUNTI FACOLTATIVI NON SVOLTI
+- Disdetta con penale < 48 h: provata ma non inclusa (con qwen2.5 peggiorava la ricerca degli orari)
+- Send: disponibilità su più medici in parallelo
+- SqliteSaver + time travel per il debug
