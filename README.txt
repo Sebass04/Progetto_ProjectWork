@@ -25,6 +25,11 @@ PREPARAZIONE DELL'AMBIENTE VIRTUALE E DEI MODELLI DA USARE
     - python main.py (chiede il codice fiscale del paziente)
     - /esci chiude la conversazione e si torna al codice fiscale: ogni accesso è una conversazione nuova
     - /fine al posto del codice fiscale chiude il programma
+    - /prenotazioni mostra le visite future confermate del paziente con il numero di prenotazione,
+      lette direttamente dal database (non passa dall'LLM); dopo una prenotazione anche l'assistente di solito
+      comunica il numero, ma non sempre (dipende dal modello): il riferimento sicuro è /prenotazioni
+    - il numero di prenotazione non compare nel riepilogo della conferma perché lo crea il database
+      solo dopo il "si", al momento dell'INSERT
     - preferenze del paziente (Store): dopo ogni prenotazione confermata vengono salvati il medico e la fascia
       oraria (mattina o pomeriggio) di quella prenotazione, al posto dei precedenti; al nuovo accesso dello
       stesso paziente vengono mostrati e negli orari liberi sono segnati "medico preferito" e "fascia preferita"

@@ -111,6 +111,29 @@ def cerca_slot_liberi_dati(specialita, data):
     return risultati
 
 
+def prenotazioni_future_dati(paziente_id):
+    adesso = datetime.now().strftime("%Y-%m-%d %H:%M")
+    connessione = apri_connessione()
+    righe = connessione.execute(
+        """SELECT prenotazioni.id AS prenotazione_id, prenotazioni.tipo_visita AS tipo_visita,
+                  medici.nome AS medico, specialita.nome AS specialita, slot.data_ora AS data_ora
+           FROM prenotazioni
+           JOIN slot ON slot.id = prenotazioni.slot_id
+           JOIN medici ON medici.id = slot.medico_id
+           JOIN specialita ON specialita.id = medici.specialita_id
+           WHERE prenotazioni.paziente_id = ?
+             AND prenotazioni.stato = 'confermata'
+             AND slot.data_ora > ?
+           ORDER BY slot.data_ora""",
+        (paziente_id, adesso),
+    ).fetchall()
+    connessione.close()
+    risultati = []
+    for riga in righe:
+        risultati.append(dict(riga))
+    return risultati
+
+
 def registra_prenotazione(paziente_id, slot_id, tipo_visita, importo):
     # slot occupato e prenotazione inserita nella stessa transazione: o tutte e due o nessuna
     connessione = apri_connessione()
@@ -314,7 +337,8 @@ def prenota_visita(slot_id: int, tipo_visita: str, config: RunnableConfig) -> st
     # le preferenze si aggiornano da sole, solo dopo una prenotazione confermata e registrata
     salva_preferenze(get_store(), codice_fiscale, slot)
 
-    return f"Prenotazione confermata. Ricevuta salvata in ricevute/{percorso.name}:\n" + json.dumps(ricevuta, indent=2, ensure_ascii=False)
+    return (f"Prenotazione confermata. Comunica al paziente il numero di prenotazione {prenotazione['id']}. "
+            f"Ricevuta salvata in ricevute/{percorso.name}:\n" + json.dumps(ricevuta, indent=2, ensure_ascii=False))
 
 
 prompt_booking = """Sei l'assistente prenotazioni del Poliambulatorio Salus Levante.

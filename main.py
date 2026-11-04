@@ -9,7 +9,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 from langgraph.types import Command
 from config import get_llm
-from booking import agente_booking, trova_paziente, leggi_preferenze
+from booking import agente_booking, trova_paziente, leggi_preferenze, prenotazioni_future_dati, mostra_data
 from rag import agente_info
 
 llm = get_llm()
@@ -151,8 +151,20 @@ def esegui(ingresso, config):
     return grafo.get_state(config)
 
 
+def mostra_prenotazioni(paziente):
+    # letto dal database e non chiesto all'LLM: così l'elenco è sempre vero
+    visite = prenotazioni_future_dati(paziente["id"])
+    if len(visite) == 0:
+        print("Non ha visite prenotate.")
+    else:
+        print("Le sue visite prenotate:")
+        for visita in visite:
+            print(f"   prenotazione {visita['prenotazione_id']}: {visita['specialita']} con {visita['medico']} "
+                  f"il {mostra_data(visita['data_ora'])} ({visita['tipo_visita']})")
+
+
 def conversazione(paziente, config):
-    print(f"Benvenuto {paziente['nome']}. Scrivi /esci per terminare la conversazione.")
+    print(f"Benvenuto {paziente['nome']}. Scrivi /prenotazioni per vedere le sue visite, /esci per terminare la conversazione.")
     preferenze = leggi_preferenze(memoria_preferenze, paziente["codice_fiscale"])
     if preferenze is not None:
         print(f"Dalle visite precedenti: medico preferito {preferenze['medico']}, fascia preferita {preferenze['fascia']}.")
@@ -162,6 +174,9 @@ def conversazione(paziente, config):
         if testo == "/esci":
             print("Arrivederci!")
             return
+        if testo == "/prenotazioni":
+            mostra_prenotazioni(paziente)
+            continue
 
         stato = esegui({"messages": [("user", testo)]}, config)
 
