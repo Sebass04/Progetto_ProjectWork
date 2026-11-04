@@ -1,4 +1,6 @@
 PREPARAZIONE DELL'AMBIENTE VIRTUALE E DEI MODELLI DA USARE
+FRONTEND WEB: istruzioni complete in README.md. Avvio rapido: .\avvia-web.ps1
+
 1. Creare un venv:
     - python -m venv .venv
     - .venv\Scripts\activate

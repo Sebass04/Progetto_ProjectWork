@@ -6,6 +6,7 @@ from langchain_core.messages import SystemMessage
 from langchain_chroma import Chroma
 from langgraph.graph import StateGraph, MessagesState, START, END
 from config import get_llm, get_embeddings
+from response_formatting import completa_risposta_tariffe
 
 cartella = Path(__file__).parent
 percorso_pdf = cartella / "data" / "carta_servizi_poliambulatorio.pdf"
@@ -90,7 +91,12 @@ def recupera(stato: StatoInfo) -> dict:
 
 def genera(stato: StatoInfo) -> dict:
     istruzioni = system_prompt.replace("{context}", stato["contesto"])
-    risposta = llm.invoke([SystemMessage(istruzioni)] + messaggi_di_testo(stato)[-5:])
+    messaggi = messaggi_di_testo(stato)
+    risposta = llm.invoke([SystemMessage(istruzioni)] + messaggi[-5:])
+    domanda = next((m.content for m in reversed(messaggi) if m.type == "human"), "")
+    if isinstance(risposta.content, str) and isinstance(domanda, str):
+        testo = completa_risposta_tariffe(domanda, risposta.content)
+        risposta = risposta.model_copy(update={"content": testo})
     return {"messages": [risposta]}
 
 
